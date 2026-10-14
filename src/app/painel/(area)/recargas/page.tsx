@@ -53,7 +53,7 @@ export default async function Recargas({ searchParams }: { searchParams: Promise
       <div className="tbl-wrap">
         <table>
           <thead>
-            <tr><th>Recarga</th><th>Estação</th><th>Conector</th><th>Início</th><th>Duração</th><th>Origem</th><th>Status</th><th className="num">kWh</th><th className="num">Valor</th></tr>
+            <tr><th>Recarga</th><th>Estação</th><th>Conector</th><th>Início</th><th>Duração</th><th>Cliente / origem</th><th>Status</th><th className="num">kWh</th><th className="num">Valor</th></tr>
           </thead>
           <tbody>
             {linhas.length === 0 && <tr><td colSpan={9}><div className="vazio"><b>Nenhuma recarga</b>Nada encontrado com esses filtros.</div></td></tr>}
@@ -64,7 +64,7 @@ export default async function Recargas({ searchParams }: { searchParams: Promise
                 <td className="muted">{r.conector_numero} · {r.conector ?? "-"}</td>
                 <td className="muted">{quando(r.inicio)}</td>
                 <td className="muted">{duracao(r.inicio, r.fim)}</td>
-                <td className="muted">{ORIGEM[r.origem] ?? r.origem}{r.usuario ? ` · ${r.usuario.split(" ")[0]}` : ""}</td>
+                <td className="muted">{r.motorista && u.perfil !== "parceiro" ? <><b style={{ color: "var(--ink)" }}>{r.motorista}</b> · app</> : ORIGEM[r.origem] ?? r.origem}{r.usuario ? ` · ${r.usuario.split(" ")[0]}` : ""}</td>
                 <td><BadgeRecarga status={r.status} /></td>
                 <td className="num">{kwh(r.energia_wh)}</td>
                 <td className="num">{brl(r.valor_centavos)}</td>

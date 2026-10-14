@@ -10,9 +10,13 @@ export type Settings = {
   heartbeatSeg: number;
   // Intervalo das leituras do medidor durante a recarga (segundos).
   leituraSeg: number;
+  // Saldo mínimo na carteira para iniciar uma recarga pelo app.
+  saldoMinimoCentavos: number;
+  // WhatsApp do atendimento (só dígitos, com DDI), usado em Ajuda.
+  suporteWhatsapp: string;
 };
 
-const PADRAO: Settings = { empresa: "Viva Energia", offlineMinutos: 5, heartbeatSeg: 60, leituraSeg: 15 };
+const PADRAO: Settings = { empresa: "Viva Energia", offlineMinutos: 5, heartbeatSeg: 60, leituraSeg: 15, saldoMinimoCentavos: 1000, suporteWhatsapp: "" };
 
 const faixa = (v: unknown, min: number, max: number, padrao: number) => {
   const n = Number(v);
@@ -28,6 +32,8 @@ export async function getSettings(): Promise<Settings> {
     offlineMinutos: faixa(d.offlineMinutos, 1, 120, PADRAO.offlineMinutos),
     heartbeatSeg: faixa(d.heartbeatSeg, 10, 3600, PADRAO.heartbeatSeg),
     leituraSeg: faixa(d.leituraSeg, 5, 600, PADRAO.leituraSeg),
+    saldoMinimoCentavos: faixa(d.saldoMinimoCentavos, 100, 50000, PADRAO.saldoMinimoCentavos),
+    suporteWhatsapp: typeof d.suporteWhatsapp === "string" && /^\d{12,13}$/.test(d.suporteWhatsapp) ? d.suporteWhatsapp : "",
   };
 }
 

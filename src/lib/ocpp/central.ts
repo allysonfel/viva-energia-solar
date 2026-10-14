@@ -11,6 +11,7 @@ import { sql, ensureSchema } from "../db";
 import { verifyPassword } from "../auth";
 import { getSettings } from "../settings";
 import { abrirAviso, resolverAviso } from "../avisos";
+import { cobrarRecarga } from "../carteira";
 import { lerFrame, lerMedidor, type Call } from "./tipos";
 
 type Pendente = { resolve: (v: Record<string, unknown>) => void; reject: (e: Error) => void; timer: NodeJS.Timeout };
@@ -207,10 +208,15 @@ function horario(v: unknown): Date {
   return Number.isFinite(t) && t > Date.now() - 7 * 86_400_000 && t < Date.now() + 5 * 60_000 ? d : new Date();
 }
 
-async function statusTag(idTag: string): Promise<"Accepted" | "Invalid" | "Blocked"> {
+// Cartão aceito? Cartões da operação ficam em "tags"; o cartão virtual do
+// motorista é o id_tag dele e só vale com conta ativa e saldo mínimo.
+async function statusTag(idTag: string): Promise<{ status: "Accepted" | "Invalid" | "Blocked"; motorista: number | null }> {
   const [t] = await sql<{ ativa: boolean }[]>`SELECT ativa FROM tags WHERE id_tag = ${idTag}`;
-  if (!t) return "Invalid";
-  return t.ativa ? "Accepted" : "Blocked";
+  if (t) return { status: t.ativa ? "Accepted" : "Blocked", motorista: null };
+  const [m] = await sql<{ id: number; ativo: boolean; saldo_centavos: number }[]>`SELECT id, ativo, saldo_centavos FROM motoristas WHERE id_tag = ${idTag}`;
+  if (!m) return { status: "Invalid", motorista: null };
+  const s = await getSettings();
+  return { status: m.ativo && m.saldo_centavos >= s.saldoMinimoCentavos ? "Accepted" : "Blocked", motorista: m.id };
 }
 
 const valor = (energiaWh: number, precoKwh: number) => Math.round((energiaWh * precoKwh) / 1000);
@@ -257,7 +263,7 @@ const HANDLERS: Record<string, Handler> = {
   },
 
   async Authorize(_c, p) {
-    return { idTagInfo: { status: await statusTag(str(p.idTag, 20)) } };
+    return { idTagInfo: { status: (await statusTag(str(p.idTag, 20))).status } };
   },
 
   async StartTransaction(c, p) {
@@ -265,37 +271,38 @@ const HANDLERS: Record<string, Handler> = {
     const idTag = str(p.idTag, 20);
     const medidor = Math.max(0, int(p.meterStart) ?? 0);
     const inicio = horario(p.timestamp);
-    const st = await statusTag(idTag);
+    const tag = await statusTag(idTag);
+    const st = tag.status;
     const chave = `${c.codigo}:${n}`;
     const intencao = estado.intencoes.get(chave);
     const daIntencao = intencao && intencao.idTag === idTag && intencao.expira > Date.now() ? intencao : null;
     if (daIntencao) estado.intencoes.delete(chave);
     const [e] = await sql<{ preco_kwh_centavos: number; custo_kwh_centavos: number }[]>`
       SELECT preco_kwh_centavos, custo_kwh_centavos FROM estacoes WHERE id = ${c.estacaoId}`;
-    const [t] = await sql<{ motorista_id: number | null }[]>`SELECT motorista_id FROM tags WHERE id_tag = ${idTag}`;
-    const id = await sql.begin(async (tx) => {
+    const { id, fechadas } = await sql.begin(async (tx) => {
       // Recarga aberta esquecida no mesmo conector (carregador reiniciou sem
       // mandar o Stop) é fechada como interrompida antes de abrir a nova.
-      await tx`
+      const fechadas = await tx<{ id: number }[]>`
         UPDATE recargas SET status = 'interrompida', fim = ${inicio}, motivo_fim = 'NovaTransacao', atualizado_em = now()
-        WHERE estacao_id = ${c.estacaoId} AND conector_numero = ${n} AND status = 'em_andamento'`;
+        WHERE estacao_id = ${c.estacaoId} AND conector_numero = ${n} AND status = 'em_andamento' RETURNING id`;
       const [r] = await tx<{ id: number }[]>`
         INSERT INTO recargas (estacao_id, conector_numero, id_tag, motorista_id, origem, usuario_id, status, inicio,
           medidor_inicio_wh, preco_kwh_centavos, custo_kwh_centavos, fim, motivo_fim)
-        VALUES (${c.estacaoId}, ${n}, ${idTag}, ${daIntencao?.motoristaId ?? t?.motorista_id ?? null}, ${daIntencao?.origem ?? "carregador"},
+        VALUES (${c.estacaoId}, ${n}, ${idTag}, ${daIntencao?.motoristaId ?? tag.motorista}, ${daIntencao?.origem ?? "carregador"},
           ${daIntencao?.usuarioId ?? null}, ${st === "Accepted" ? "em_andamento" : "recusada"}, ${inicio}, ${medidor},
           ${e?.preco_kwh_centavos ?? 0}, ${e?.custo_kwh_centavos ?? 0}, ${st === "Accepted" ? null : inicio}, ${st === "Accepted" ? null : "TagRecusada"})
         RETURNING id`;
-      return r.id;
+      return { id: r.id, fechadas };
     });
+    for (const f of fechadas) await cobrarRecarga(f.id);
     return { transactionId: id, idTagInfo: { status: st } };
   },
 
   async MeterValues(c, p) {
     const tx = int(p.transactionId);
     if (tx === null) return {};
-    const [r] = await sql<{ id: number; medidor_inicio_wh: number; preco_kwh_centavos: number }[]>`
-      SELECT id, medidor_inicio_wh, preco_kwh_centavos FROM recargas
+    const [r] = await sql<{ id: number; medidor_inicio_wh: number; preco_kwh_centavos: number; motorista_id: number | null; parada_solicitada: boolean }[]>`
+      SELECT id, medidor_inicio_wh, preco_kwh_centavos, motorista_id, parada_solicitada FROM recargas
       WHERE id = ${tx} AND estacao_id = ${c.estacaoId} AND status = 'em_andamento'`;
     if (!r) return {};
     const leituras = Array.isArray(p.meterValue) ? (p.meterValue as { timestamp?: unknown; sampledValue?: unknown }[]).slice(0, 20) : [];
@@ -309,6 +316,7 @@ const HANDLERS: Record<string, Handler> = {
           valor_centavos = ${valor(energia, r.preco_kwh_centavos)}, atualizado_em = now()
         WHERE id = ${r.id}`;
     }
+    if (r.motorista_id && !r.parada_solicitada) await pararSeSaldoAcabou(c, r.id, r.motorista_id);
     return {};
   },
 
@@ -329,10 +337,12 @@ const HANDLERS: Record<string, Handler> = {
             medidor_fim_wh = ${medidor}, energia_wh = coalesce(${energia}, energia_wh), potencia_w = 0,
             valor_centavos = ${energia === null ? sql`valor_centavos` : valor(energia, r.preco_kwh_centavos)}, atualizado_em = now()
           WHERE id = ${r.id}`;
+        await cobrarRecarga(r.id);
       }
     }
-    const idTag = str(p.idTag, 20);
-    return idTag ? { idTagInfo: { status: await statusTag(idTag) } } : {};
+    // Depois de debitar, o saldo pode estar abaixo do mínimo: isso não
+    // recusa o Stop (a recarga já acabou), então responde Accepted.
+    return str(p.idTag, 20) ? { idTagInfo: { status: "Accepted" } } : {};
   },
 
   async DataTransfer() {
@@ -345,6 +355,24 @@ const HANDLERS: Record<string, Handler> = {
     return {};
   },
 };
+
+// Saldo vai acabar antes da próxima leitura: pede para o carregador parar
+// (uma vez). A conta usa a potência atual até a próxima leitura (+5 s de
+// folga), para não estourar o saldo. Não espera a resposta aqui: ela chega
+// pela mesma fila desta conexão, que está ocupada com esta mensagem.
+async function pararSeSaldoAcabou(c: Conexao, recargaId: number, motoristaId: number) {
+  const [x] = await sql<{ valor_centavos: number; saldo_centavos: number; potencia_w: number; preco_kwh_centavos: number }[]>`
+    SELECT r.valor_centavos, m.saldo_centavos, r.potencia_w, r.preco_kwh_centavos FROM recargas r JOIN motoristas m ON m.id = r.motorista_id
+    WHERE r.id = ${recargaId} AND m.id = ${motoristaId}`;
+  if (!x) return;
+  const s = await getSettings();
+  const proximaWh = (x.potencia_w * (s.leituraSeg + 5)) / 3600;
+  if (x.valor_centavos + valor(proximaWh, x.preco_kwh_centavos) < x.saldo_centavos) return;
+  await sql`UPDATE recargas SET parada_solicitada = true WHERE id = ${recargaId}`;
+  console.log(`[ocpp] ${c.codigo} recarga #${recargaId}: saldo acabou, pedindo parada`);
+  enviar(c.codigo, "RemoteStopTransaction", { transactionId: recargaId }).catch(() => {});
+  sql`INSERT INTO comandos (estacao_id, acao, descricao, payload, status) VALUES (${c.estacaoId}, 'RemoteStopTransaction', ${`Parar recarga #${recargaId} (saldo acabou)`}, ${sql.json({ transactionId: recargaId })}, 'enviado')`.catch(() => {});
+}
 
 // ---------------------------------------------------------------- saída
 

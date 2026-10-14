@@ -13,6 +13,15 @@ Desenvolvido pela Logos Company.
 - Tabelas criadas sozinhas na primeira subida (`src/lib/db.ts`). Dinheiro em centavos, energia em Wh.
 - **Uma instância só**: as conexões dos carregadores ficam na memória do processo. Não escalar para mais de 1 réplica.
 
+## App do motorista (raiz do site)
+
+- Cadastro (CPF e celular validados, aceite do aviso de privacidade), login, recuperação de senha por e-mail.
+- Mapa (Leaflet; imagens do mapa em `MAPA_TILES`), estação com escolha do conector, leitor de QR (câmera + jsQR) e
+  QR impresso por conector (painel > estação > QR dos conectores) apontando para `/e/<código>/<conector>`.
+- Carteira pré-paga (`src/lib/carteira.ts`): crédito por Pix ou cartão (`src/lib/pagamentos.ts`, provedor simulado até
+  escolher o gateway), débito no fim da recarga, parada automática antes do saldo acabar.
+- Recarga ao vivo, recibo, histórico, perfil e ajuda.
+
 ## Rodar local
 
 1. Postgres na porta 5434 com o banco `viva_local`.

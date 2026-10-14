@@ -397,3 +397,27 @@ textarea.input{height:auto;min-height:80px;padding:10px 14px;resize:vertical}
 .sim-linha{flex-wrap:wrap}
 .sim-linha .li-main{flex:1 1 100%}
 .btn,.link{text-decoration:none}
+/* app do motorista: sem o espaço do seletor de demonstração; abas são links */
+.app{margin-top:0;height:100%}
+@media (min-width:760px){.app{margin-top:18px;height:calc(100% - 18px)}}
+.tabbar a{display:flex;flex-direction:column;align-items:center;gap:3px;font-size:11px;font-weight:700;color:var(--faint);padding:6px 0;text-decoration:none}
+.tabbar a.on{color:var(--g800)}
+.tabbar a.scan{color:var(--g900)}
+.app-head .icon-btn{text-decoration:none;color:inherit}
+/* mapa real (Leaflet) com os pinos do protótipo */
+.map-wrap .mapa{position:absolute;inset:0;z-index:1;background:#DCE8E0}
+.leaflet-container{font:inherit}
+.leaflet-marker-icon.pin-icone{background:none;border:0}
+.leaflet-marker-icon .pin{position:absolute;left:0;top:0;cursor:pointer}
+.leaflet-marker-icon .pin.em_uso .bubble{background:var(--amber)}
+.leaflet-marker-icon .pin.offline .bubble,.leaflet-marker-icon .pin.indisponivel .bubble,.leaflet-marker-icon .pin.falha .bubble{background:#8A9A92}
+.leaflet-marker-icon .pin.sel .bubble{background:var(--volt);color:var(--volt-ink)}
+.leaflet-marker-icon .pin.sel .bubble svg{color:var(--volt-ink)}
+.leaflet-marker-icon .me{position:absolute;left:0;top:0}
+.near-card{text-decoration:none;color:inherit;display:block}
+.map-top .chips{margin-top:10px}
+.estacao-pg{background:#fff;min-height:100%}
+.qr-imprimir{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px}
+.qr-imprimir figure{border:1px solid var(--line);border-radius:14px;padding:12px;text-align:center;background:#fff}
+.qr-imprimir img{width:100%;max-width:180px}
+.leaflet-marker-icon .pin .bubble{white-space:nowrap}

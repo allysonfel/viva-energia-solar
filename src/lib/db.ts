@@ -104,6 +104,74 @@ CREATE TABLE IF NOT EXISTS conectores (
   UNIQUE (estacao_id, numero)
 );
 
+-- Motoristas (app). Saldo pré-pago em centavos: espelho da soma dos
+-- movimentos, sempre atualizado na mesma transação. CPF só dígitos.
+CREATE TABLE IF NOT EXISTS motoristas (
+  id SERIAL PRIMARY KEY,
+  nome TEXT NOT NULL CHECK (length(nome) BETWEEN 2 AND 80),
+  cpf TEXT NOT NULL UNIQUE CHECK (cpf ~ '^[0-9]{11}$'),
+  celular TEXT NOT NULL CHECK (celular ~ '^[0-9]{10,11}$'),
+  email TEXT NOT NULL UNIQUE CHECK (email = lower(email)),
+  senha_hash TEXT NOT NULL,
+  veiculo TEXT NOT NULL DEFAULT '',
+  placa TEXT NOT NULL DEFAULT '',
+  conectores TEXT[] NOT NULL DEFAULT '{}',
+  -- "Cartão virtual" usado no RemoteStartTransaction (idTag do OCPP).
+  id_tag TEXT NOT NULL UNIQUE,
+  saldo_centavos BIGINT NOT NULL DEFAULT 0,
+  avisos_recarga BOOLEAN NOT NULL DEFAULT true,
+  aceita_promocoes BOOLEAN NOT NULL DEFAULT false,
+  consentimento_em TIMESTAMPTZ NOT NULL,
+  ativo BOOLEAN NOT NULL DEFAULT true,
+  sessao_versao INT NOT NULL DEFAULT 1,
+  ultimo_acesso TIMESTAMPTZ,
+  criado_em TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Pagamentos para pôr crédito na carteira (Pix ou cartão).
+CREATE TABLE IF NOT EXISTS pagamentos (
+  id SERIAL PRIMARY KEY,
+  motorista_id INT NOT NULL REFERENCES motoristas(id),
+  metodo TEXT NOT NULL CHECK (metodo IN ('pix', 'cartao')),
+  valor_centavos BIGINT NOT NULL CHECK (valor_centavos BETWEEN 100 AND 200000),
+  status TEXT NOT NULL DEFAULT 'pendente' CHECK (status IN ('pendente', 'pago', 'expirado', 'recusado', 'cancelado')),
+  provedor TEXT NOT NULL,
+  provedor_id TEXT,
+  pix_copia_cola TEXT,
+  cartao_final TEXT,
+  cartao_bandeira TEXT,
+  expira_em TIMESTAMPTZ,
+  pago_em TIMESTAMPTZ,
+  criado_em TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (provedor, provedor_id)
+);
+CREATE INDEX IF NOT EXISTS pagamentos_motorista_idx ON pagamentos (motorista_id, id DESC);
+
+-- Extrato da carteira. Crédito de pagamento e débito de recarga são únicos
+-- (pagamento/recarga não entram duas vezes).
+CREATE TABLE IF NOT EXISTS carteira_movimentos (
+  id SERIAL PRIMARY KEY,
+  motorista_id INT NOT NULL REFERENCES motoristas(id),
+  tipo TEXT NOT NULL CHECK (tipo IN ('credito', 'recarga', 'ajuste', 'estorno')),
+  valor_centavos BIGINT NOT NULL CHECK (valor_centavos <> 0),
+  descricao TEXT NOT NULL DEFAULT '',
+  pagamento_id INT UNIQUE REFERENCES pagamentos(id),
+  recarga_id INT UNIQUE,
+  usuario_id INT REFERENCES usuarios(id),
+  criado_em TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS carteira_motorista_idx ON carteira_movimentos (motorista_id, id DESC);
+
+-- Recuperação de senha do motorista: só o hash do token, validade curta, uso único.
+CREATE TABLE IF NOT EXISTS recuperacao_senha (
+  id SERIAL PRIMARY KEY,
+  motorista_id INT NOT NULL REFERENCES motoristas(id) ON DELETE CASCADE,
+  token_hash TEXT NOT NULL UNIQUE,
+  expira_em TIMESTAMPTZ NOT NULL,
+  usado_em TIMESTAMPTZ,
+  criado_em TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 -- Cartões/etiquetas aceitos no Authorize (RFID ou o "cartão virtual" do app).
 CREATE TABLE IF NOT EXISTS tags (
   id SERIAL PRIMARY KEY,
@@ -211,6 +279,10 @@ CREATE TABLE IF NOT EXISTS audit_log (
   ip TEXT,
   criado_em TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Recarga do app parada por falta de saldo: marca para não pedir duas vezes.
+ALTER TABLE recargas ADD COLUMN IF NOT EXISTS parada_solicitada BOOLEAN NOT NULL DEFAULT false;
+CREATE INDEX IF NOT EXISTS recargas_motorista_idx ON recargas (motorista_id, inicio DESC) WHERE motorista_id IS NOT NULL;
 `;
 
 let ready: Promise<void> | null = null;

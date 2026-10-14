@@ -67,7 +67,10 @@ export default async function Estacao({ params, searchParams }: {
       <AutoAtualizar ms={5_000} />
       <div className="between" style={{ marginBottom: 14 }}>
         <Link className="link" href="/painel/estacoes" style={{ display: "flex", alignItems: "center", gap: 4 }}><Ic n="back" />Estações</Link>
-        <span className="muted" style={{ fontSize: 12.5 }}>{e.conectada ? `Conectada há ${haQuanto(det.conectada_em)}` : `Último contato: ${haQuanto(e.ultimo_contato)}`}</span>
+        <div className="row" style={{ gap: 12 }}>
+          <span className="muted" style={{ fontSize: 12.5 }}>{e.conectada ? `Conectada há ${haQuanto(det.conectada_em)}` : `Último contato: ${haQuanto(e.ultimo_contato)}`}</span>
+          <Link className="btn btn-ghost btn-sm" href={`/painel/estacoes/${id}/qr`}><Ic n="qr" />QR dos conectores</Link>
+        </div>
       </div>
       {q.ok && <div className="aviso ok">{OK[q.ok] ?? "Salvo."}</div>}
       {q.erro && <div className="aviso erro">{ERROS[q.erro] ?? q.erro}</div>}

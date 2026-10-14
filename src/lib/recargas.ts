@@ -22,6 +22,7 @@ const desde = (p: Periodo) =>
 export type LinhaRecarga = {
   id: number; estacao: string; estacao_id: number; conector_numero: number; conector: string | null; id_tag: string; origem: string;
   status: string; inicio: Date; fim: Date | null; energia_wh: number; valor_centavos: number; motivo_fim: string | null; usuario: string | null;
+  motorista: string | null;
 };
 
 export async function buscarRecargas(f: Filtro, parceiro: number | null, limite = 50, pagina = 1) {
@@ -34,10 +35,11 @@ export async function buscarRecargas(f: Filtro, parceiro: number | null, limite 
     ${buscaId ? sql`AND r.id = ${buscaId}` : f.busca ? sql`AND r.id_tag ILIKE ${"%" + f.busca.replace(/[%_\\]/g, "") + "%"}` : sql``}`;
   const linhas = await sql<LinhaRecarga[]>`
     SELECT r.id, e.nome AS estacao, r.estacao_id, r.conector_numero, c.tipo || ' · ' || (c.potencia_w / 1000) || ' kW' AS conector,
-      r.id_tag, r.origem, r.status, r.inicio, r.fim, r.energia_wh, r.valor_centavos, r.motivo_fim, u.nome AS usuario
+      r.id_tag, r.origem, r.status, r.inicio, r.fim, r.energia_wh, r.valor_centavos, r.motivo_fim, u.nome AS usuario, mo.nome AS motorista
     FROM recargas r JOIN estacoes e ON e.id = r.estacao_id
     LEFT JOIN conectores c ON c.estacao_id = r.estacao_id AND c.numero = r.conector_numero
     LEFT JOIN usuarios u ON u.id = r.usuario_id
+    LEFT JOIN motoristas mo ON mo.id = r.motorista_id
     ${onde}
     ORDER BY r.inicio DESC LIMIT ${limite} OFFSET ${(pagina - 1) * limite}`;
   const [t] = await sql<{ n: number; wh: number; centavos: number }[]>`
