@@ -1,0 +1,19 @@
+{
+  "name": "viva-energia-backup",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Backup diário do banco (serviço cron do Railway)",
+  "scripts": {
+    "backup": "node backup.mjs",
+    "restaurar": "node restaurar.mjs",
+    "gerar-chave": "node gerar-chave.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.1147.0",
+    "age-encryption": "^0.3.1",
+    "postgres": "^3.4.9"
+  }
+}
