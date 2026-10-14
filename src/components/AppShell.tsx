@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Ic } from "./Ic";
+import { RecargaFlutuante } from "./RecargaFlutuante";
 
 const TITULO: [RegExp, string][] = [
   [/^\/carteira/, "Carteira"],
@@ -21,10 +22,11 @@ export function AppShell({ children, nome, recargaInicial, naoLidosInicial }: { 
   const [recarga, setRecarga] = useState(recargaInicial);
   const [naoLidos, setNaoLidos] = useState(naoLidosInicial);
 
-  // Confere a cada 15 s se há recarga em andamento (começou pelo cartão, terminou...).
+  // Confere se há recarga em andamento a cada troca de tela e a cada 15 s
+  // (começou pelo cartão no carregador, terminou, foi encerrada pelo botão).
   useEffect(() => {
     let vivo = true;
-    const t = setInterval(() => {
+    const conferir = () => {
       if (document.visibilityState !== "visible") return;
       fetch("/api/app/recarga-atual", { cache: "no-store" })
         .then((r) => (r.ok ? r.json() : null))
@@ -34,12 +36,14 @@ export function AppShell({ children, nome, recargaInicial, naoLidosInicial }: { 
           setNaoLidos(d.naoLidos ?? 0);
         })
         .catch(() => {});
-    }, 15_000);
+    };
+    conferir();
+    const t = setInterval(conferir, 15_000);
     return () => {
       vivo = false;
       clearInterval(t);
     };
-  }, []);
+  }, [path]);
 
   const titulo = TITULO.find(([r]) => r.test(path))?.[1];
   const tela = path === "/" ? "mapa" : path.split("/")[1];
@@ -59,6 +63,7 @@ export function AppShell({ children, nome, recargaInicial, naoLidosInicial }: { 
           </div>
         )}
         <div className="app-body">{children}</div>
+        {recarga && !semAbas && <RecargaFlutuante key={recarga} id={recarga} />}
         {!semAbas && (
           <div className="tabbar">
             <Link href="/" className={on("mapa") || on("estacao")}><Ic n="map" />Mapa</Link>

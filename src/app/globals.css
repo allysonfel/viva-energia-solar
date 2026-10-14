@@ -421,3 +421,16 @@ textarea.input{height:auto;min-height:80px;padding:10px 14px;resize:vertical}
 .qr-imprimir figure{border:1px solid var(--line);border-radius:14px;padding:12px;text-align:center;background:#fff}
 .qr-imprimir img{width:100%;max-width:180px}
 .leaflet-marker-icon .pin .bubble{white-space:nowrap}
+/* Botão flutuante da recarga em andamento (pedido do cliente): azul, respira e tem um ponto girando em volta */
+.fab-recarga{position:absolute;right:16px;bottom:92px;z-index:15;width:58px;height:58px;border-radius:50%;display:grid;place-items:center;
+  background:radial-gradient(circle at 35% 30%,#2F6FE0,#0B3B8C 70%);color:#fff;box-shadow:0 8px 22px rgba(11,59,140,.45);
+  animation:fab-respira 1.8s ease-in-out infinite}
+.fab-recarga svg{width:26px;height:26px;stroke-width:2.2}
+.fab-recarga .orbita{position:absolute;inset:-4px;border-radius:50%;animation:fab-gira 2.4s linear infinite}
+.fab-recarga .orbita::before{content:"";position:absolute;top:-1px;left:50%;width:8px;height:8px;margin-left:-4px;border-radius:50%;background:#fff;box-shadow:0 0 6px rgba(255,255,255,.9)}
+@keyframes fab-respira{0%,100%{transform:scale(1);box-shadow:0 8px 22px rgba(11,59,140,.45),0 0 0 0 rgba(47,111,224,.45)}50%{transform:scale(1.08);box-shadow:0 10px 26px rgba(11,59,140,.5),0 0 0 10px rgba(47,111,224,0)}}
+@keyframes fab-gira{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.fab-recarga,.fab-recarga .orbita{animation:none}}
+.barra-recarga{height:10px;border-radius:99px;background:#E6EEF9;overflow:hidden}
+.barra-recarga i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,#2F6FE0,#0B3B8C);transition:width .5s}
+.app:has(.map-wrap) .fab-recarga{bottom:300px}
