@@ -3,6 +3,9 @@ import { getSettings } from "@/lib/settings";
 import { kwh, num } from "@/lib/format";
 import { Ic } from "@/components/Ic";
 
+// Gerado a cada acesso: mostra números do banco (no build não há banco).
+export const dynamic = "force-dynamic";
+
 // Moldura das telas de entrar, cadastro e recuperação (visual do protótipo).
 export default async function ContaLayout({ children }: { children: React.ReactNode }) {
   const s = await getSettings();

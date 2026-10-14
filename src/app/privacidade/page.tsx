@@ -1,6 +1,9 @@
 import Link from "next/link";
 import { getSettings } from "@/lib/settings";
 
+// Gerada a cada acesso (usa o nome da empresa do banco; no build não há banco).
+export const dynamic = "force-dynamic";
+
 // Aviso de privacidade do app. TEXTO A REVISAR COM A VIVA ENERGIA antes de publicar.
 export default async function Privacidade() {
   const s = await getSettings();
