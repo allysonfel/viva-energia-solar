@@ -36,7 +36,8 @@ export default async function Recibo({ params }: { params: Promise<{ id: string 
           <div><span className="muted">Recarga</span><span>#{r.id}</span></div>
           <div><span className="muted">Energia entregue</span><span>{kwh(r.energia_wh)} kWh</span></div>
           <div><span className="muted">Duração</span><span>{duracao(r.inicio, r.fim)}</span></div>
-          <div><span className="muted">Tarifa</span><span>{brl(r.preco_kwh_centavos)}/kWh</span></div>
+          <div><span className="muted">Tarifa{r.tarifa_nome ? ` ${r.tarifa_nome.toLowerCase()}` : ""}</span><span>{brl(r.preco_cheio_centavos ?? r.preco_kwh_centavos)}/kWh</span></div>
+          {r.voucher && <div><span className="muted">Voucher {r.voucher}</span><span>-{r.desconto_pct}% · {brl(r.preco_kwh_centavos)}/kWh</span></div>}
           {r.motivo_fim && <div><span className="muted">Fim</span><span>{r.parada_solicitada ? "Saldo da carteira acabou" : MOTIVO[r.motivo_fim] ?? r.motivo_fim}</span></div>}
           <div><span className="muted">CO₂ evitado</span><span>{kwh(r.energia_wh * CO2_POR_KWH)} kg</span></div>
           <div><span>Total</span><span>{brl(r.valor_centavos)}</span></div>

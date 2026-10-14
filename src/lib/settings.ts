@@ -14,9 +14,11 @@ export type Settings = {
   saldoMinimoCentavos: number;
   // WhatsApp do atendimento (só dígitos, com DDI), usado em Ajuda.
   suporteWhatsapp: string;
+  // Taxa média do gateway (Pix + cartão) em centésimos de %: 210 = 2,1%. Só para relatório.
+  taxaPagamentoBp: number;
 };
 
-const PADRAO: Settings = { empresa: "Viva Energia", offlineMinutos: 5, heartbeatSeg: 60, leituraSeg: 15, saldoMinimoCentavos: 1000, suporteWhatsapp: "" };
+const PADRAO: Settings = { empresa: "Viva Energia", offlineMinutos: 5, heartbeatSeg: 60, leituraSeg: 15, saldoMinimoCentavos: 1000, suporteWhatsapp: "", taxaPagamentoBp: 210 };
 
 const faixa = (v: unknown, min: number, max: number, padrao: number) => {
   const n = Number(v);
@@ -33,6 +35,7 @@ export async function getSettings(): Promise<Settings> {
     heartbeatSeg: faixa(d.heartbeatSeg, 10, 3600, PADRAO.heartbeatSeg),
     leituraSeg: faixa(d.leituraSeg, 5, 600, PADRAO.leituraSeg),
     saldoMinimoCentavos: faixa(d.saldoMinimoCentavos, 100, 50000, PADRAO.saldoMinimoCentavos),
+    taxaPagamentoBp: faixa(d.taxaPagamentoBp, 0, 1500, PADRAO.taxaPagamentoBp),
     suporteWhatsapp: typeof d.suporteWhatsapp === "string" && /^\d{12,13}$/.test(d.suporteWhatsapp) ? d.suporteWhatsapp : "",
   };
 }

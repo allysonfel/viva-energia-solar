@@ -69,7 +69,7 @@ export function AoVivo({ inicial }: { inicial: RecargaApp }) {
         <div className="cost"><small>Valor até agora</small><b>{brl(r.valor_centavos)}</b></div>
       </div>
       <div className="between" style={{ background: "rgba(255,255,255,.06)", borderRadius: 14, padding: "12px 14px", fontSize: 12.5, color: "#A9C4B6", marginBottom: 16 }}>
-        <span>Tarifa</span>
+        <span>Tarifa{r.tarifa_nome ? ` ${r.tarifa_nome.toLowerCase()}` : ""}{r.voucher ? ` com ${r.voucher} (-${r.desconto_pct}%)` : ""}</span>
         <b className="mono" style={{ color: "#fff" }}>{brl(r.preco_kwh_centavos)}/kWh</b>
       </div>
       {res && <div className={`aviso ${res.ok ? "info" : "erro"}`}>{res.texto}</div>}

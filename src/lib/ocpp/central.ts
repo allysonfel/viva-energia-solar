@@ -12,12 +12,14 @@ import { verifyPassword } from "../auth";
 import { getSettings } from "../settings";
 import { abrirAviso, resolverAviso } from "../avisos";
 import { cobrarRecarga } from "../carteira";
+import { listarTarifas, precoNoHorario } from "../tarifas";
 import { lerFrame, lerMedidor, type Call } from "./tipos";
 
 type Pendente = { resolve: (v: Record<string, unknown>) => void; reject: (e: Error) => void; timer: NodeJS.Timeout };
 type Conexao = { ws: WebSocket; estacaoId: number; codigo: string; pendentes: Map<string, Pendente>; vivo: boolean; msgs: number[] };
 // Pedido de início remoto: liga a transação que o carregador abrir à origem (painel/app).
-type Intencao = { idTag: string; origem: "painel" | "app"; usuarioId: number | null; motoristaId: number | null; expira: number };
+// voucher = id em motorista_vouchers (voucher resgatado que o motorista escolheu usar).
+type Intencao = { idTag: string; origem: "painel" | "app"; usuarioId: number | null; motoristaId: number | null; voucher?: number | null; expira: number };
 
 type Estado = { conexoes: Map<string, Conexao>; intencoes: Map<string, Intencao>; seq: number };
 const g = globalThis as unknown as { __vivaCentral?: Estado };
@@ -279,7 +281,22 @@ const HANDLERS: Record<string, Handler> = {
     if (daIntencao) estado.intencoes.delete(chave);
     const [e] = await sql<{ preco_kwh_centavos: number; custo_kwh_centavos: number }[]>`
       SELECT preco_kwh_centavos, custo_kwh_centavos FROM estacoes WHERE id = ${c.estacaoId}`;
+    // Tarifa do horário de início; voucher (se o motorista escolheu) aplicado em %.
+    const tarifa = precoNoHorario(await listarTarifas(), e?.preco_kwh_centavos ?? 0, inicio);
+    const motoristaId = daIntencao?.motoristaId ?? tag.motorista;
     const { id, fechadas } = await sql.begin(async (tx) => {
+      let voucher: { mv: number; voucher_id: number; pct: number } | null = null;
+      if (st === "Accepted" && motoristaId && daIntencao?.voucher) {
+        const [v] = await tx<{ mv: number; voucher_id: number; pct: number }[]>`
+          SELECT mv.id AS mv, v.id AS voucher_id, v.pct FROM motorista_vouchers mv JOIN vouchers v ON v.id = mv.voucher_id
+          WHERE mv.id = ${daIntencao.voucher} AND mv.motorista_id = ${motoristaId} AND mv.recarga_id IS NULL AND v.ativo
+            AND (v.valido_ate IS NULL OR v.valido_ate >= (now() AT TIME ZONE 'America/Sao_Paulo')::date)
+            AND (v.estacao_id IS NULL OR v.estacao_id = ${c.estacaoId})
+            AND (v.limite_usos IS NULL OR (SELECT count(*) FROM motorista_vouchers u WHERE u.voucher_id = v.id AND u.recarga_id IS NOT NULL) < v.limite_usos)
+          FOR UPDATE OF mv`;
+        voucher = v ?? null;
+      }
+      const preco = voucher ? Math.round((tarifa.preco * (100 - voucher.pct)) / 100) : tarifa.preco;
       // Recarga aberta esquecida no mesmo conector (carregador reiniciou sem
       // mandar o Stop) é fechada como interrompida antes de abrir a nova.
       const fechadas = await tx<{ id: number }[]>`
@@ -287,11 +304,13 @@ const HANDLERS: Record<string, Handler> = {
         WHERE estacao_id = ${c.estacaoId} AND conector_numero = ${n} AND status = 'em_andamento' RETURNING id`;
       const [r] = await tx<{ id: number }[]>`
         INSERT INTO recargas (estacao_id, conector_numero, id_tag, motorista_id, origem, usuario_id, status, inicio,
-          medidor_inicio_wh, preco_kwh_centavos, custo_kwh_centavos, fim, motivo_fim)
-        VALUES (${c.estacaoId}, ${n}, ${idTag}, ${daIntencao?.motoristaId ?? tag.motorista}, ${daIntencao?.origem ?? "carregador"},
+          medidor_inicio_wh, preco_kwh_centavos, preco_cheio_centavos, tarifa_nome, voucher_id, desconto_pct, custo_kwh_centavos, fim, motivo_fim)
+        VALUES (${c.estacaoId}, ${n}, ${idTag}, ${motoristaId}, ${daIntencao?.origem ?? "carregador"},
           ${daIntencao?.usuarioId ?? null}, ${st === "Accepted" ? "em_andamento" : "recusada"}, ${inicio}, ${medidor},
-          ${e?.preco_kwh_centavos ?? 0}, ${e?.custo_kwh_centavos ?? 0}, ${st === "Accepted" ? null : inicio}, ${st === "Accepted" ? null : "TagRecusada"})
+          ${preco}, ${tarifa.preco}, ${tarifa.nome}, ${voucher?.voucher_id ?? null}, ${voucher?.pct ?? 0},
+          ${e?.custo_kwh_centavos ?? 0}, ${st === "Accepted" ? null : inicio}, ${st === "Accepted" ? null : "TagRecusada"})
         RETURNING id`;
+      if (voucher) await tx`UPDATE motorista_vouchers SET recarga_id = ${r.id}, usado_em = now() WHERE id = ${voucher.mv}`;
       return { id: r.id, fechadas };
     });
     for (const f of fechadas) await cobrarRecarga(f.id);

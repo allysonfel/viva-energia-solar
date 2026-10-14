@@ -19,8 +19,10 @@ export function Sino() {
 
   useEffect(() => {
     let vivo = true;
+    // Cancela a consulta ao trocar de tela (sem isso o navegador acusa erro de rede).
+    const ctrl = new AbortController();
     const carregar = () =>
-      fetch("/api/painel/avisos", { cache: "no-store" })
+      fetch("/api/painel/avisos", { cache: "no-store", signal: ctrl.signal })
         .then((r) => (r.ok ? r.json() : null))
         .then((d) => vivo && d && setAvisos(d.avisos))
         .catch(() => {});
@@ -28,6 +30,7 @@ export function Sino() {
     const t = setInterval(carregar, 15_000);
     return () => {
       vivo = false;
+      ctrl.abort();
       clearInterval(t);
     };
   }, []);

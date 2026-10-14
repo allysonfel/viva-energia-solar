@@ -16,6 +16,9 @@ import { provedorPagamentos } from "@/lib/pagamentos";
 import { iniciarRecarga, pararRecarga } from "@/lib/ocpp/comandos";
 import { estaConectada } from "@/lib/ocpp/central";
 import { TIPOS_CONECTOR } from "@/lib/ocpp/tipos";
+import { vouchersDisponiveis } from "@/lib/app";
+import { clientIp } from "@/lib/request";
+import { isBlocked, registerFailure } from "@/lib/limits";
 
 export type Resposta = { ok: boolean; texto: string; id?: number } | null;
 
@@ -38,7 +41,10 @@ export async function iniciarRecargaApp(_: Resposta, fd: FormData): Promise<Resp
   if (m.saldo_centavos < s.saldoMinimoCentavos) {
     return { ok: false, texto: `Saldo mínimo para iniciar: ${brl(s.saldoMinimoCentavos)}. Adicione crédito na carteira.` };
   }
-  const r = await iniciarRecarga(e, null, n, m.id_tag, m.id);
+  // Voucher escolhido: precisa ser do motorista, sem uso e valer nesta estação.
+  const mv = Number(fd.get("voucher")) || null;
+  if (mv && !(await vouchersDisponiveis(m.id, e.id)).some((v) => v.mv === mv)) return { ok: false, texto: "Esse voucher não vale nesta recarga." };
+  const r = await iniciarRecarga(e, null, n, m.id_tag, m.id, mv);
   await audit(`motorista:${m.id}`, "recarga_pedida", "estacao", e.id, `conector ${n}: ${r.ok ? "aceito" : "não aceito"}`);
   if (!r.ok) return { ok: false, texto: "O carregador não aceitou o pedido. Confira se o cabo está conectado e tente de novo." };
   return { ok: true, texto: "Pedido enviado ao carregador." };
@@ -111,6 +117,30 @@ export async function pagarCartao(_: Resposta, fd: FormData): Promise<Resposta> 
   await audit(`motorista:${m.id}`, r.aprovado ? "cartao_aprovado" : "cartao_recusado", "pagamento", p.id, brl(valor));
   revalidatePath("/carteira");
   return r.aprovado ? { ok: true, texto: `${brl(valor)} adicionados à carteira.` } : { ok: false, texto: r.motivo ?? "Pagamento recusado." };
+}
+
+// Resgate de voucher pelo código. Freio contra tentativa de adivinhar
+// códigos: 10 erros em 15 min por motorista e 30 por IP.
+export async function resgatarVoucher(_: Resposta, fd: FormData): Promise<Resposta> {
+  const m = await requireMotorista();
+  const codigo = String(fd.get("codigo") ?? "").trim().toUpperCase().slice(0, 20);
+  const chaves: [string, number][] = [[`voucher:${m.id}`, 10], [`voucher-ip:${await clientIp()}`, 30]];
+  if (await isBlocked(chaves)) return { ok: false, texto: "Muitas tentativas. Aguarde 15 minutos." };
+  const [v] = /^[A-Z0-9]{3,20}$/.test(codigo)
+    ? await sql<{ id: number; pct: number; esgotado: boolean }[]>`
+        SELECT v.id, v.pct, (v.limite_usos IS NOT NULL AND (SELECT count(*) FROM motorista_vouchers u WHERE u.voucher_id = v.id AND u.recarga_id IS NOT NULL) >= v.limite_usos) AS esgotado
+        FROM vouchers v WHERE v.codigo = ${codigo} AND v.ativo AND (v.valido_ate IS NULL OR v.valido_ate >= (now() AT TIME ZONE 'America/Sao_Paulo')::date)`
+    : [];
+  if (!v) {
+    await registerFailure(...chaves.map(([c]) => c));
+    return { ok: false, texto: "Código inválido ou vencido." };
+  }
+  if (v.esgotado) return { ok: false, texto: "Esse voucher já esgotou." };
+  const r = await sql`INSERT INTO motorista_vouchers (motorista_id, voucher_id) VALUES (${m.id}, ${v.id}) ON CONFLICT DO NOTHING RETURNING id`;
+  if (!r.length) return { ok: false, texto: "Você já resgatou esse voucher." };
+  await audit(`motorista:${m.id}`, "voucher_resgatado", "voucher", v.id, codigo);
+  revalidatePath("/carteira");
+  return { ok: true, texto: `Voucher ${codigo} resgatado: ${v.pct}% de desconto na próxima recarga.` };
 }
 
 // ---------------------------------------------------------------- perfil

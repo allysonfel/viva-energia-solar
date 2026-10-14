@@ -280,8 +280,51 @@ CREATE TABLE IF NOT EXISTS audit_log (
   criado_em TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Tarifas por faixa de horário (horário de Brasília), iguais para todas as
+-- estações. As faixas cobrem as 24 h sem sobrepor (conferido ao salvar). Sem
+-- faixas, vale o preço cadastrado em cada estação. A tarifa que vale é a do
+-- início da recarga.
+CREATE TABLE IF NOT EXISTS tarifas (
+  id SERIAL PRIMARY KEY,
+  nome TEXT NOT NULL CHECK (length(nome) BETWEEN 2 AND 30),
+  hora_inicio INT NOT NULL CHECK (hora_inicio BETWEEN 0 AND 23),
+  hora_fim INT NOT NULL CHECK (hora_fim BETWEEN 1 AND 24 AND hora_fim > hora_inicio),
+  preco_kwh_centavos INT NOT NULL CHECK (preco_kwh_centavos BETWEEN 1 AND 10000),
+  cor TEXT NOT NULL DEFAULT '#34B37A' CHECK (cor ~ '^#[0-9A-Fa-f]{6}$')
+);
+
+-- Vouchers de desconto (% sobre a tarifa). Cada motorista usa um código uma vez.
+CREATE TABLE IF NOT EXISTS vouchers (
+  id SERIAL PRIMARY KEY,
+  codigo TEXT NOT NULL UNIQUE CHECK (codigo ~ '^[A-Z0-9]{3,20}$'),
+  pct INT NOT NULL CHECK (pct BETWEEN 1 AND 100),
+  descricao TEXT NOT NULL DEFAULT '',
+  estacao_id INT REFERENCES estacoes(id),
+  valido_ate DATE,
+  limite_usos INT CHECK (limite_usos IS NULL OR limite_usos > 0),
+  ativo BOOLEAN NOT NULL DEFAULT true,
+  criado_por INT REFERENCES usuarios(id),
+  criado_em TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS motorista_vouchers (
+  id SERIAL PRIMARY KEY,
+  motorista_id INT NOT NULL REFERENCES motoristas(id),
+  voucher_id INT NOT NULL REFERENCES vouchers(id),
+  origem TEXT NOT NULL DEFAULT 'resgate' CHECK (origem IN ('resgate', 'cortesia')),
+  recarga_id INT UNIQUE,
+  resgatado_em TIMESTAMPTZ NOT NULL DEFAULT now(),
+  usado_em TIMESTAMPTZ,
+  UNIQUE (motorista_id, voucher_id)
+);
+
 -- Recarga do app parada por falta de saldo: marca para não pedir duas vezes.
 ALTER TABLE recargas ADD COLUMN IF NOT EXISTS parada_solicitada BOOLEAN NOT NULL DEFAULT false;
+-- Tarifa e desconto do início da recarga (preco_kwh_centavos já é o preço com desconto).
+ALTER TABLE recargas ADD COLUMN IF NOT EXISTS tarifa_nome TEXT;
+ALTER TABLE recargas ADD COLUMN IF NOT EXISTS preco_cheio_centavos INT;
+ALTER TABLE recargas ADD COLUMN IF NOT EXISTS voucher_id INT REFERENCES vouchers(id);
+ALTER TABLE recargas ADD COLUMN IF NOT EXISTS desconto_pct INT NOT NULL DEFAULT 0;
 CREATE INDEX IF NOT EXISTS recargas_motorista_idx ON recargas (motorista_id, inicio DESC) WHERE motorista_id IS NOT NULL;
 `;
 

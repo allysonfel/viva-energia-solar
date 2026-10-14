@@ -35,8 +35,8 @@ async function executar(
 export const reiniciar = (e: { id: number; codigo: string }, uid: number | null, tipo: "Soft" | "Hard" = "Soft") =>
   executar(e, uid, "Reset", tipo === "Soft" ? "Reiniciar" : "Reiniciar (forçado)", { type: tipo });
 
-export async function iniciarRecarga(e: { id: number; codigo: string }, uid: number | null, conector: number, idTag = ID_TAG_OPERACAO, motoristaId: number | null = null) {
-  registrarIntencao(e.codigo, conector, { idTag, origem: motoristaId ? "app" : "painel", usuarioId: uid, motoristaId });
+export async function iniciarRecarga(e: { id: number; codigo: string }, uid: number | null, conector: number, idTag = ID_TAG_OPERACAO, motoristaId: number | null = null, voucher: number | null = null) {
+  registrarIntencao(e.codigo, conector, { idTag, origem: motoristaId ? "app" : "painel", usuarioId: uid, motoristaId, voucher });
   return executar(e, uid, "RemoteStartTransaction", `Iniciar recarga no conector ${conector}`, { connectorId: conector, idTag });
 }
 

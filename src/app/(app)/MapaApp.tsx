@@ -147,7 +147,7 @@ export function MapaApp({ inicial, tiles, atribuicao, meusConectores }: { inicia
                 <div className="between"><div className="t">{e.nome}</div><Badge s={e.situacao} /></div>
                 <div className="m">{[e.km !== null ? distTxt(e.km) : null, e.bairro].filter(Boolean).join(" · ")}</div>
                 <div className="r">
-                  <span className="badge b-neutral mono">{brl(e.preco_kwh_centavos)}/kWh</span>
+                  <span className="badge b-neutral mono">{brl(e.preco_agora)}/kWh</span>
                   {e.conectores.map((c) => <span key={c.numero} className="badge b-neutral">{c.tipo} {kw(c.potencia_w)} kW</span>)}
                 </div>
               </Link>

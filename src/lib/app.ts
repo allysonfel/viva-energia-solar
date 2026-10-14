@@ -1,6 +1,7 @@
 // Consultas do app do motorista.
 import { sql } from "./db";
 import { situacaoEstacao, situacaoConector, type Situacao } from "./ocpp/tipos";
+import { listarTarifas, precoNoHorario } from "./tarifas";
 
 export type EstacaoApp = {
   id: number;
@@ -12,6 +13,9 @@ export type EstacaoApp = {
   lat: number | null;
   lng: number | null;
   preco_kwh_centavos: number;
+  // Tarifa do horário atual (faixas) ou o preço da estação.
+  preco_agora: number;
+  tarifa_nome: string | null;
   situacao: Situacao;
   conectores: { numero: number; tipo: string; potencia_w: number; situacao: Situacao }[];
 };
@@ -26,10 +30,14 @@ export async function estacoesDoMapa(codigo?: string): Promise<EstacaoApp[]> {
     FROM estacoes e
     WHERE e.ativa ${codigo ? sql`AND e.codigo = ${codigo}` : sql`AND e.lat IS NOT NULL AND e.lng IS NOT NULL`}
     ORDER BY e.nome`;
+  const tarifas = await listarTarifas();
   return rows.map(({ conectada, habilitada, status_geral, conectores, ...e }) => {
+    const t = precoNoHorario(tarifas, e.preco_kwh_centavos);
     const cs = (conectores ?? []).map((c) => ({ numero: c.numero, tipo: c.tipo, potencia_w: c.potencia_w, situacao: situacaoConector(conectada, habilitada ? c.status : "Unavailable"), status: c.status }));
     return {
       ...e,
+      preco_agora: t.preco,
+      tarifa_nome: t.nome,
       situacao: situacaoEstacao({ conectada, habilitada, status_geral }, cs),
       conectores: cs.map(({ status: _s, ...c }) => c),
     };
@@ -52,13 +60,19 @@ export type RecargaApp = {
   preco_kwh_centavos: number;
   motivo_fim: string | null;
   parada_solicitada: boolean;
+  tarifa_nome: string | null;
+  preco_cheio_centavos: number | null;
+  desconto_pct: number;
+  voucher: string | null;
 };
 
 const COLUNAS = sql`
   r.id, e.nome AS estacao, e.codigo AS estacao_codigo, r.conector_numero, c.tipo || ' ' || (c.potencia_w / 1000) || ' kW' AS conector,
-  r.status, r.inicio, r.fim, r.energia_wh, r.potencia_w, r.soc, r.valor_centavos, r.preco_kwh_centavos, r.motivo_fim, r.parada_solicitada`;
+  r.status, r.inicio, r.fim, r.energia_wh, r.potencia_w, r.soc, r.valor_centavos, r.preco_kwh_centavos, r.motivo_fim, r.parada_solicitada,
+  r.tarifa_nome, r.preco_cheio_centavos, r.desconto_pct, v.codigo AS voucher`;
 const ORIGEM = sql`
   FROM recargas r JOIN estacoes e ON e.id = r.estacao_id
+  LEFT JOIN vouchers v ON v.id = r.voucher_id
   LEFT JOIN conectores c ON c.estacao_id = r.estacao_id AND c.numero = r.conector_numero`;
 
 // Só recargas do próprio motorista.
@@ -79,3 +93,18 @@ export async function historico(motorista: number, limite = 50): Promise<Recarga
 
 // kg de CO₂ evitados por kWh (carro elétrico x a combustão, referência do protótipo).
 export const CO2_POR_KWH = 0.52;
+
+// Vouchers do motorista que ainda podem ser usados (resgatados, sem uso,
+// ativos, na validade e com limite disponível). Com estação, só os que valem nela.
+export type VoucherApp = { mv: number; codigo: string; pct: number; descricao: string; estacao: string | null; estacao_id: number | null; valido_ate: Date | null };
+
+export async function vouchersDisponiveis(motorista: number, estacaoId?: number): Promise<VoucherApp[]> {
+  return sql<VoucherApp[]>`
+    SELECT mv.id AS mv, v.codigo, v.pct, v.descricao, e.nome AS estacao, v.estacao_id, v.valido_ate
+    FROM motorista_vouchers mv JOIN vouchers v ON v.id = mv.voucher_id LEFT JOIN estacoes e ON e.id = v.estacao_id
+    WHERE mv.motorista_id = ${motorista} AND mv.recarga_id IS NULL AND v.ativo
+      AND (v.valido_ate IS NULL OR v.valido_ate >= (now() AT TIME ZONE 'America/Sao_Paulo')::date)
+      AND (v.limite_usos IS NULL OR (SELECT count(*) FROM motorista_vouchers u WHERE u.voucher_id = v.id AND u.recarga_id IS NOT NULL) < v.limite_usos)
+      ${estacaoId ? sql`AND (v.estacao_id IS NULL OR v.estacao_id = ${estacaoId})` : sql``}
+    ORDER BY v.pct DESC, mv.id`;
+}

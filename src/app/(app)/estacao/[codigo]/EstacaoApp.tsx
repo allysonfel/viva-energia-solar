@@ -7,15 +7,20 @@ import { Badge } from "@/components/Badge";
 import { Ic } from "@/components/Ic";
 import { brl, kw } from "@/lib/format";
 import type { EstacaoApp as Est } from "@/lib/app";
+import type { Tarifa } from "@/lib/tarifas";
 import { iniciarRecargaApp, type Resposta } from "../../acoes";
 
-export function EstacaoApp({ e, conectorInicial, saldo, saldoMinimo, meusConectores }: {
+export function EstacaoApp({ e, conectorInicial, saldo, saldoMinimo, meusConectores, tarifas, horaAgora, vouchers }: {
   e: Est;
   conectorInicial: number | null;
   saldo: number;
   saldoMinimo: number;
   meusConectores: string[];
+  tarifas: Tarifa[];
+  horaAgora: number;
+  vouchers: { mv: number; codigo: string; pct: number }[];
 }) {
+  const [voucher, setVoucher] = useState<number | null>(vouchers[0]?.mv ?? null);
   const router = useRouter();
   const livres = e.conectores.filter((c) => c.situacao === "disponivel");
   const [con, setCon] = useState<number | null>(
@@ -50,7 +55,9 @@ export function EstacaoApp({ e, conectorInicial, saldo, saldoMinimo, meusConecto
   const c = e.conectores.find((x) => x.numero === con);
   const off = e.situacao === "offline" || e.situacao === "indisponivel" || e.situacao === "falha";
   const maxKw = Math.max(0, ...e.conectores.map((x) => x.potencia_w));
-  const estimativa = Math.round(30 * e.preco_kwh_centavos);
+  const pct = vouchers.find((v) => v.mv === voucher)?.pct ?? 0;
+  const preco = Math.round((e.preco_agora * (100 - pct)) / 100);
+  const estimativa = Math.round(30 * preco);
   const rota = e.lat !== null && e.lng !== null ? `https://www.google.com/maps/dir/?api=1&destination=${e.lat},${e.lng}` : null;
 
   if (esperando)
@@ -84,7 +91,7 @@ export function EstacaoApp({ e, conectorInicial, saldo, saldoMinimo, meusConecto
         <div className="addr">{[e.endereco, e.bairro, e.cidade].filter(Boolean).join(" · ")}</div>
       </div>
       <div className="kv">
-        <div><small>Tarifa agora</small><b>{brl(e.preco_kwh_centavos)}</b></div>
+        <div><small>Tarifa agora</small><b>{brl(e.preco_agora)}</b></div>
         <div><small>Potência máx.</small><b>{kw(maxKw)} kW</b></div>
         <div><small>Conectores</small><b>{livres.length} de {e.conectores.length} livres</b></div>
       </div>
@@ -115,6 +122,22 @@ export function EstacaoApp({ e, conectorInicial, saldo, saldoMinimo, meusConecto
               })}
             </>
           )}
+          {tarifas.length > 0 && (
+            <div className="box" style={{ marginTop: 6 }}>
+              <div className="box-title">Tarifa por horário {e.tarifa_nome && <span className="badge b-disponivel">{e.tarifa_nome} agora</span>}</div>
+              <div className="tariff-strip">{tarifas.map((t) => <div key={t.id} style={{ flex: t.hora_fim - t.hora_inicio, background: t.cor }} />)}</div>
+              <div className="tariff-scale"><span>00h</span><span>06h</span><span>12h</span><span>18h</span><span>24h</span></div>
+              <div style={{ marginTop: 10, display: "grid", gap: 6, fontSize: 12.5 }}>
+                {tarifas.map((t) => (
+                  <div key={t.id} className="between">
+                    <span className="row" style={{ gap: 6 }}><span className="dot" style={{ background: t.cor }} />{t.nome} {String(t.hora_inicio).padStart(2, "0")}h a {String(t.hora_fim).padStart(2, "0")}h</span>
+                    <b className="mono" style={horaAgora >= t.hora_inicio && horaAgora < t.hora_fim ? { color: "var(--g600)" } : undefined}>{brl(t.preco_kwh_centavos)}</b>
+                  </div>
+                ))}
+              </div>
+              <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>Vale a tarifa do horário em que a recarga começa.</div>
+            </div>
+          )}
           <div style={{ display: "grid", gridTemplateColumns: rota ? "auto 1fr" : "1fr", gap: 10, marginTop: 6 }}>
             {rota && <a className="btn btn-ghost" href={rota} target="_blank" rel="noopener noreferrer"><Ic n="nav" />Rota</a>}
             <button className="btn btn-volt" disabled={off || !c} style={off || !c ? { opacity: 0.4 } : undefined} onClick={() => setConfirmar(true)}>
@@ -126,10 +149,17 @@ export function EstacaoApp({ e, conectorInicial, saldo, saldoMinimo, meusConecto
         <form action={enviar} style={{ padding: "16px 18px 20px" }}>
           <input type="hidden" name="codigo" value={e.codigo} />
           <input type="hidden" name="conector" value={con ?? ""} />
+          <input type="hidden" name="voucher" value={voucher ?? ""} />
           <h3 style={{ fontSize: 21, fontWeight: 800, marginBottom: 4 }}>Confirmar recarga</h3>
           <div className="muted" style={{ marginBottom: 14 }}>{e.nome} · Conector {c?.numero} · {c?.tipo} {c ? kw(c.potencia_w) : ""} kW</div>
           <div className="box">
-            <div className="between" style={{ marginBottom: 8 }}><span className="muted">Tarifa</span><b className="mono">{brl(e.preco_kwh_centavos)}/kWh</b></div>
+            <div className="between" style={{ marginBottom: 8 }}><span className="muted">Tarifa{e.tarifa_nome ? ` ${e.tarifa_nome.toLowerCase()}` : ""}</span><b className="mono">{brl(e.preco_agora)}/kWh</b></div>
+            {pct > 0 && (
+              <>
+                <div className="between" style={{ marginBottom: 8, color: "var(--g600)" }}><span>Voucher {vouchers.find((v) => v.mv === voucher)?.codigo}</span><b className="mono">-{pct}%</b></div>
+                <div className="between" style={{ marginBottom: 8 }}><span className="muted">Você paga</span><b className="mono">{brl(preco)}/kWh</b></div>
+              </>
+            )}
             <div className="between"><span className="muted">Estimativa para 30 kWh</span><b className="mono">{brl(estimativa)}</b></div>
           </div>
           <div className="box">
@@ -145,6 +175,17 @@ export function EstacaoApp({ e, conectorInicial, saldo, saldoMinimo, meusConecto
               <div className="aviso alerta" style={{ marginTop: 4, marginBottom: 0 }}>O saldo pode não cobrir uma recarga completa. A recarga para sozinha quando o saldo acabar.</div>
             ) : null}
           </div>
+          {vouchers.length > 0 && (
+            <div className="box">
+              <div className="box-title">Usar voucher</div>
+              <div className="chips" style={{ flexWrap: "wrap" }}>
+                <button type="button" className={`chip ${voucher === null ? "on" : ""}`} onClick={() => setVoucher(null)}>Não usar</button>
+                {vouchers.map((v) => (
+                  <button key={v.mv} type="button" className={`chip ${voucher === v.mv ? "on" : ""}`} onClick={() => setVoucher(v.mv)}>{v.codigo} · {v.pct}%</button>
+                ))}
+              </div>
+            </div>
+          )}
           {r && !r.ok && <div className="aviso erro">{r.texto}</div>}
           <button className="btn btn-volt btn-block" disabled={enviando || saldo < saldoMinimo}><Ic n="bolt" />{enviando ? "Enviando..." : "Conectei o cabo, iniciar"}</button>
           <button type="button" className="btn btn-ghost btn-block" style={{ marginTop: 10 }} onClick={() => setConfirmar(false)}>Voltar</button>

@@ -22,7 +22,9 @@ async function salvar(fd: FormData) {
   if (empresa.length < 2 || offlineMinutos === null || heartbeatSeg === null || leituraSeg === null) redirect("/painel/configuracoes?erro=1");
   if (saldoMinimoCentavos === null || saldoMinimoCentavos < 100 || saldoMinimoCentavos > 50000) redirect("/painel/configuracoes?erro=1");
   if (suporteWhatsapp && !/^\d{12,13}$/.test(suporteWhatsapp)) redirect("/painel/configuracoes?erro=1");
-  await saveSettings({ empresa, offlineMinutos, heartbeatSeg, leituraSeg, saldoMinimoCentavos, suporteWhatsapp });
+  const taxa = Number(String(fd.get("taxa") ?? "").replace(",", "."));
+  if (!Number.isFinite(taxa) || taxa < 0 || taxa > 15) redirect("/painel/configuracoes?erro=1");
+  await saveSettings({ empresa, offlineMinutos, heartbeatSeg, leituraSeg, saldoMinimoCentavos, suporteWhatsapp, taxaPagamentoBp: Math.round(taxa * 100) });
   await audit(`usuario:${u.id}`, "configuracoes_salvas", null, null, `offline ${offlineMinutos} min, heartbeat ${heartbeatSeg} s, leitura ${leituraSeg} s`);
   redirect("/painel/configuracoes?ok=1");
 }
@@ -59,6 +61,11 @@ export default async function Configuracoes({ searchParams }: { searchParams: Pr
         <div className="field">
           <label htmlFor="whatsapp">WhatsApp do atendimento (aparece em Ajuda)</label>
           <input className="input mono" id="whatsapp" name="whatsapp" defaultValue={s.suporteWhatsapp} maxLength={16} placeholder="83 99999-0000" />
+        </div>
+        <div className="box-title">Relatórios</div>
+        <div className="field">
+          <label htmlFor="taxa">Taxa média do pagamento (Pix + cartão), em %</label>
+          <input className="input mono" id="taxa" name="taxa" defaultValue={String(s.taxaPagamentoBp / 100).replace(".", ",")} maxLength={6} />
         </div>
         <button className="btn btn-dark">Salvar</button>
       </div>
