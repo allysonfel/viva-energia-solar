@@ -13,7 +13,7 @@ export type Motorista = {
   id: number;
   nome: string;
   email: string;
-  cpf: string;
+  cpf: string | null;
   celular: string;
   veiculo: string;
   placa: string;

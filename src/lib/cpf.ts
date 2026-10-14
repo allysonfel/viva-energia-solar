@@ -13,7 +13,7 @@ export function cpfValido(v: unknown): string | null {
   return dv(9) === Number(d[9]) && dv(10) === Number(d[10]) ? d : null;
 }
 
-export const cpfMascarado = (d: string) => (d.length === 11 ? `***.${d.slice(3, 6)}.${d.slice(6, 9)}-**` : "***");
+export const cpfMascarado = (d: string | null) => (d && d.length === 11 ? `***.${d.slice(3, 6)}.${d.slice(6, 9)}-**` : "***");
 
 // Celular brasileiro com DDD (10 ou 11 dígitos, sem o 55).
 export function celularValido(v: unknown): string | null {

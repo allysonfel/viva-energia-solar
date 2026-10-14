@@ -4,7 +4,11 @@ import { cpfMascarado, celularFormatado } from "@/lib/cpf";
 import { iniciais } from "@/lib/format";
 import { SENHA_MINIMA } from "@/lib/auth";
 import { Ic } from "@/components/Ic";
-import { salvarPerfil, trocarSenhaApp, sairApp } from "../acoes";
+import { salvarPerfil, trocarSenhaApp, sairApp, excluirConta } from "../acoes";
+import { inscreverPushApp } from "@/app/acoes-push";
+import { vapidPublica } from "@/lib/push";
+import { AtivarAvisos } from "@/components/AtivarAvisos";
+import { BotaoSair } from "@/components/BotaoSair";
 
 const MSG: Record<string, [string, string]> = {
   "ok:1": ["ok", "Perfil salvo."],
@@ -12,6 +16,9 @@ const MSG: Record<string, [string, string]> = {
   "erro:celular": ["erro", "Celular inválido."],
   "erro:atual": ["erro", "Senha atual incorreta."],
   "erro:nova": ["erro", `A nova senha precisa ter pelo menos ${SENHA_MINIMA} caracteres.`],
+  "erro:excluir": ["erro", "Para excluir, confirme marcando a caixa e digite sua senha."],
+  "erro:saldo": ["erro", "Você ainda tem saldo na carteira. Peça a devolução em Ajuda antes de excluir a conta."],
+  "erro:recarga": ["erro", "Encerre a recarga em andamento antes de excluir a conta."],
 };
 
 export default async function Perfil({ searchParams }: { searchParams: Promise<{ ok?: string; erro?: string }> }) {
@@ -57,6 +64,10 @@ export default async function Perfil({ searchParams }: { searchParams: Promise<{
       </form>
 
       <div className="box" style={{ padding: "4px 16px" }}>
+        <AtivarAvisos vapid={vapidPublica()} inscrever={inscreverPushApp} />
+      </div>
+
+      <div className="box" style={{ padding: "4px 16px" }}>
         <Link className="list-item" href="/ajuda" style={{ textDecoration: "none", color: "inherit" }}>
           <span className="li-ic"><Ic n="help" /></span><div className="li-main"><b>Ajuda e suporte</b><small>Dúvidas frequentes e atendimento</small></div><Ic n="right" />
         </Link>
@@ -72,9 +83,21 @@ export default async function Perfil({ searchParams }: { searchParams: Promise<{
         <button className="btn btn-ghost btn-block">Trocar senha</button>
       </form>
 
-      <form action={sairApp}>
-        <button className="btn btn-danger btn-block"><Ic n="logout" />Sair da conta</button>
-      </form>
+      <div className="box">
+        <div className="box-title">Seus dados (LGPD)</div>
+        <a className="btn btn-ghost btn-block" href="/api/app/meus-dados"><Ic n="download" />Baixar meus dados</a>
+        <details style={{ marginTop: 12 }}>
+          <summary className="muted" style={{ fontSize: 13, cursor: "pointer" }}>Excluir minha conta</summary>
+          <form action={excluirConta} style={{ marginTop: 10 }}>
+            <p className="muted" style={{ fontSize: 12.5, marginBottom: 8 }}>Seus dados pessoais são apagados. O histórico de recargas e pagamentos fica guardado sem o seu nome, como exige a lei. Não dá para desfazer.</p>
+            <label className="row" style={{ gap: 8, fontSize: 13, marginBottom: 8 }}><input type="checkbox" name="confirmo" value="1" /> Quero excluir minha conta</label>
+            <div className="field"><label htmlFor="senha-exc">Sua senha</label><input className="input" id="senha-exc" name="senha" type="password" required maxLength={200} autoComplete="current-password" /></div>
+            <button className="btn btn-danger btn-block">Excluir conta</button>
+          </form>
+        </details>
+      </div>
+
+      <BotaoSair acao={sairApp} className="btn btn-danger btn-block"><Ic n="logout" />Sair da conta</BotaoSair>
     </div>
   );
 }

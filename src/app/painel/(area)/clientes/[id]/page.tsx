@@ -88,7 +88,10 @@ export default async function Cliente({ params, searchParams }: { params: Promis
     <>
       <div className="between" style={{ marginBottom: 14 }}>
         <Link className="link" href="/painel/clientes" style={{ display: "flex", alignItems: "center", gap: 4 }}><Ic n="back" />Clientes</Link>
-        {!m.ativo && <span className="badge b-offline">Conta desativada</span>}
+        <div className="row" style={{ gap: 8 }}>
+          {!m.ativo && <span className="badge b-offline">Conta desativada</span>}
+          {admin && <a className="btn btn-ghost btn-sm" href={`/painel/clientes/${m.id}/dados`}><Ic n="download" />Cópia dos dados (LGPD)</a>}
+        </div>
       </div>
       {msg && <div className={`aviso ${msg[0]}`}>{msg[1]}</div>}
       <div className="grid2">

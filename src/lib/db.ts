@@ -318,8 +318,37 @@ CREATE TABLE IF NOT EXISTS motorista_vouchers (
   UNIQUE (motorista_id, voucher_id)
 );
 
+-- Inscrições de push (avisos no celular). Dono = alguém da equipe ou motorista.
+-- Só vale enquanto a sessão (versão) for a mesma do momento da inscrição.
+CREATE TABLE IF NOT EXISTS push_inscricoes (
+  id SERIAL PRIMARY KEY,
+  dono_tipo TEXT NOT NULL CHECK (dono_tipo IN ('equipe', 'motorista')),
+  dono_id INT NOT NULL,
+  sessao_versao INT NOT NULL,
+  endpoint TEXT NOT NULL UNIQUE,
+  p256dh TEXT NOT NULL,
+  auth TEXT NOT NULL,
+  criada_em TIMESTAMPTZ NOT NULL DEFAULT now(),
+  usada_em TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS push_dono_idx ON push_inscricoes (dono_tipo, dono_id);
+
+-- Caixa de avisos do motorista no app (recarga iniciada, concluída, saldo...).
+CREATE TABLE IF NOT EXISTS avisos_motorista (
+  id SERIAL PRIMARY KEY,
+  motorista_id INT NOT NULL REFERENCES motoristas(id) ON DELETE CASCADE,
+  titulo TEXT NOT NULL,
+  texto TEXT NOT NULL DEFAULT '',
+  link TEXT,
+  lido BOOLEAN NOT NULL DEFAULT false,
+  criado_em TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS avisos_motorista_idx ON avisos_motorista (motorista_id, id DESC);
+
 -- Recarga do app parada por falta de saldo: marca para não pedir duas vezes.
 ALTER TABLE recargas ADD COLUMN IF NOT EXISTS parada_solicitada BOOLEAN NOT NULL DEFAULT false;
+-- Conta excluída (LGPD) fica sem CPF.
+ALTER TABLE motoristas ALTER COLUMN cpf DROP NOT NULL;
 -- Tarifa e desconto do início da recarga (preco_kwh_centavos já é o preço com desconto).
 ALTER TABLE recargas ADD COLUMN IF NOT EXISTS tarifa_nome TEXT;
 ALTER TABLE recargas ADD COLUMN IF NOT EXISTS preco_cheio_centavos INT;

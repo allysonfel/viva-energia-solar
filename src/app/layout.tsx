@@ -10,6 +10,8 @@ export const metadata: Metadata = {
   title: "Viva Energia · Recarga de veículos elétricos",
   description: "Encontre, libere e pague a recarga nas estações da Viva Energia.",
   robots: { index: false, follow: false },
+  appleWebApp: { capable: true, title: "Viva Energia", statusBarStyle: "black-translucent" },
+  icons: { icon: "/icone-64.png", apple: "/icone-apple.png" },
 };
 
 export const viewport: Viewport = { themeColor: "#062A1E", width: "device-width", initialScale: 1 };

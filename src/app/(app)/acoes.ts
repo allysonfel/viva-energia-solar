@@ -12,11 +12,12 @@ import { hashPassword, verifyPassword, SENHA_MINIMA } from "@/lib/auth";
 import { celularValido } from "@/lib/cpf";
 import { brl } from "@/lib/format";
 import { confirmarPagamento } from "@/lib/carteira";
-import { provedorPagamentos } from "@/lib/pagamentos";
+import { provedorPagamentos, pagamentosLiberados } from "@/lib/pagamentos";
 import { iniciarRecarga, pararRecarga } from "@/lib/ocpp/comandos";
 import { estaConectada } from "@/lib/ocpp/central";
 import { TIPOS_CONECTOR } from "@/lib/ocpp/tipos";
 import { vouchersDisponiveis } from "@/lib/app";
+import { excluirMotorista } from "@/lib/lgpd";
 import { clientIp } from "@/lib/request";
 import { isBlocked, registerFailure } from "@/lib/limits";
 
@@ -77,6 +78,7 @@ export async function criarPix(_: Resposta, fd: FormData): Promise<Resposta> {
   const m = await requireMotorista();
   const valor = valorCredito(fd);
   if (!valor) return { ok: false, texto: "Escolha um valor." };
+  if (!pagamentosLiberados()) return { ok: false, texto: "Pagamentos ainda não estão disponíveis. Tente mais tarde." };
   // Freio: no máximo 5 Pix pendentes por motorista.
   const [{ n }] = await sql<{ n: number }[]>`SELECT count(*)::int AS n FROM pagamentos WHERE motorista_id = ${m.id} AND status = 'pendente' AND expira_em > now()`;
   if (n >= 5) return { ok: false, texto: "Você já tem Pix aguardando pagamento. Use um deles ou espere expirar." };
@@ -92,7 +94,7 @@ export async function criarPix(_: Resposta, fd: FormData): Promise<Resposta> {
 // Só no provedor simulado: faz o papel do banco confirmando o Pix.
 export async function simularPagamentoPix(fd: FormData) {
   const m = await requireMotorista();
-  if (!provedorPagamentos().simulado) redirect("/carteira");
+  if (!provedorPagamentos().simulado || !pagamentosLiberados()) redirect("/carteira");
   const id = Number(fd.get("id"));
   const [p] = await sql`SELECT 1 FROM pagamentos WHERE id = ${id} AND motorista_id = ${m.id} AND status = 'pendente' AND provedor = 'simulado'`;
   if (p && (await confirmarPagamento(id))) await audit(`motorista:${m.id}`, "pix_pago_simulado", "pagamento", id);
@@ -108,6 +110,7 @@ export async function pagarCartao(_: Resposta, fd: FormData): Promise<Resposta> 
   const bandeira = String(fd.get("bandeira") ?? "").slice(0, 20);
   if (!valor) return { ok: false, texto: "Escolha um valor." };
   if (!/^\d{4}$/.test(final)) return { ok: false, texto: "Confira os dados do cartão." };
+  if (!pagamentosLiberados()) return { ok: false, texto: "Pagamentos ainda não estão disponíveis. Tente mais tarde." };
   const prov = provedorPagamentos();
   const r = await prov.cobrarCartao(valor, { final, bandeira }, `motorista-${m.id}`);
   const [p] = await sql<{ id: number }[]>`
@@ -172,6 +175,20 @@ export async function trocarSenhaApp(fd: FormData) {
   await iniciarSessaoMotorista(m.id, v.v);
   await audit(`motorista:${m.id}`, "senha_trocada", "motorista", m.id);
   redirect("/perfil?ok=senha");
+}
+
+// LGPD: exclusão da conta pelo próprio motorista. Pede a senha de novo.
+export async function excluirConta(fd: FormData) {
+  const m = await requireMotorista();
+  const senha = String(fd.get("senha") ?? "").slice(0, 200);
+  const [r] = await sql<{ senha_hash: string }[]>`SELECT senha_hash FROM motoristas WHERE id = ${m.id}`;
+  if (!r || !verifyPassword(senha, r.senha_hash) || fd.get("confirmo") !== "1") redirect("/perfil?erro=excluir");
+  const res = await excluirMotorista(m.id);
+  if (res === "saldo") redirect("/perfil?erro=saldo");
+  if (res === "recarga") redirect("/perfil?erro=recarga");
+  await audit(`motorista:${m.id}`, "conta_excluida", "motorista", m.id);
+  await encerrarSessaoMotorista();
+  redirect("/entrar?ok=excluida");
 }
 
 export async function sairApp() {

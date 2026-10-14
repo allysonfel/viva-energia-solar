@@ -1,6 +1,6 @@
 import type { MetadataRoute } from "next";
 
-// App instalável (tela de início do celular). Ícones PNG e avisos no celular entram na fase 4.
+// App instalável (tela de início do celular).
 export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "Viva Energia",
@@ -11,6 +11,11 @@ export default function manifest(): MetadataRoute.Manifest {
     background_color: "#062A1E",
     theme_color: "#062A1E",
     lang: "pt-BR",
-    icons: [{ src: "/icone.svg", sizes: "any", type: "image/svg+xml", purpose: "any" }],
+    icons: [
+      { src: "/icone-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
+      { src: "/icone-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
+      { src: "/icone-mask-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
+      { src: "/icone.svg", sizes: "any", type: "image/svg+xml", purpose: "any" },
+    ],
   };
 }

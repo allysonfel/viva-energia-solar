@@ -52,6 +52,14 @@ const simulado: Provedor = {
   },
 };
 
+// Em produção o simulado fica BLOQUEADO (crédito de graça na carteira), a não
+// ser com PAGAMENTOS_SIMULADO_EM_PRODUCAO=sim (demonstração/homologação).
+// Olha o provedor que de fato vai cobrar (nome desconhecido cai no simulado).
+export function pagamentosLiberados(): boolean {
+  if (!provedorPagamentos().simulado) return true;
+  return process.env.NODE_ENV !== "production" || process.env.PAGAMENTOS_SIMULADO_EM_PRODUCAO === "sim";
+}
+
 export function provedorPagamentos(): Provedor {
   const nome = process.env.PAGAMENTOS_PROVEDOR?.trim() || "simulado";
   if (nome !== "simulado") console.warn(`[pagamentos] provedor "${nome}" ainda não implementado; usando o simulado`);

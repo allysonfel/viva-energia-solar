@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Ic } from "./Ic";
 import { Sino } from "./Sino";
+import { BotaoSair } from "./BotaoSair";
 
 type Perfil = "admin" | "operador" | "parceiro";
 type Item = { href: string; nome: string; ic: string; perfis?: Perfil[] };
@@ -49,12 +50,14 @@ export function Shell({
   empresa,
   simulador,
   sair,
+  vapid,
 }: {
   children: React.ReactNode;
   user: { nome: string; perfil: Perfil; parceiro: string | null };
   empresa: string;
   simulador: boolean;
   sair: () => Promise<void>;
+  vapid: string | null;
 }) {
   const path = usePathname();
   const pode = (n: Item) => (!n.perfis || n.perfis.includes(user.perfil)) && (n.href !== "/painel/simulador" || simulador);
@@ -106,10 +109,8 @@ export function Shell({
             <h1>{titulo}</h1>
           </div>
           <div className="acts">
-            <Sino />
-            <form action={sair}>
-              <button className="icon-btn keep" title="Sair" aria-label="Sair"><Ic n="logout" /></button>
-            </form>
+            <Sino vapid={vapid} />
+            <BotaoSair acao={sair} className="icon-btn keep" title="Sair"><Ic n="logout" /></BotaoSair>
           </div>
         </div>
         <div className="content">{children}</div>

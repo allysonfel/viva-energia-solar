@@ -40,6 +40,7 @@ export default async function Entrar({ searchParams }: { searchParams: Promise<{
       <p className="sub">Entre para ver as estações perto de você.</p>
       {q.erro && <div className="aviso erro">{q.erro === "bloqueado" ? "Muitas tentativas. Aguarde 15 minutos." : "E-mail ou senha incorretos."}</div>}
       {q.ok === "senha" && <div className="aviso ok">Senha redefinida. Entre com a nova senha.</div>}
+      {q.ok === "excluida" && <div className="aviso ok">Conta excluída. Seus dados pessoais foram apagados.</div>}
       {voltar.startsWith("/e/") && <div className="aviso info">Entre para iniciar a recarga nesta estação.</div>}
       <input type="hidden" name="voltar" value={voltar} />
       <div className="field">

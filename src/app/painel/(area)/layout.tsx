@@ -4,6 +4,7 @@ import { getSettings } from "@/lib/settings";
 import { audit } from "@/lib/audit";
 import { simuladorLigado } from "@/lib/ocpp/simulador";
 import { Shell } from "@/components/Shell";
+import { vapidPublica } from "@/lib/push";
 
 async function sair() {
   "use server";
@@ -17,7 +18,7 @@ export default async function PainelLayout({ children }: { children: React.React
   const user = await requireUser();
   const s = await getSettings();
   return (
-    <Shell user={{ nome: user.nome, perfil: user.perfil, parceiro: user.parceiro_nome }} empresa={s.empresa} simulador={simuladorLigado()} sair={sair}>
+    <Shell user={{ nome: user.nome, perfil: user.perfil, parceiro: user.parceiro_nome }} empresa={s.empresa} simulador={simuladorLigado()} sair={sair} vapid={vapidPublica()}>
       {children}
     </Shell>
   );

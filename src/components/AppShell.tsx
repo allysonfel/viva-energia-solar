@@ -11,13 +11,15 @@ const TITULO: [RegExp, string][] = [
   [/^\/recibo/, "Recibo"],
   [/^\/perfil/, "Perfil"],
   [/^\/ajuda/, "Ajuda e suporte"],
+  [/^\/avisos/, "Avisos"],
 ];
 
 // Moldura do app: cabeçalho (exceto mapa, estação e recarga ao vivo) e abas.
 // O botão do meio vira "Recarga" quando há uma em andamento.
-export function AppShell({ children, nome, recargaInicial }: { children: React.ReactNode; nome: string; recargaInicial: number | null }) {
+export function AppShell({ children, nome, recargaInicial, naoLidosInicial }: { children: React.ReactNode; nome: string; recargaInicial: number | null; naoLidosInicial: number }) {
   const path = usePathname();
   const [recarga, setRecarga] = useState(recargaInicial);
+  const [naoLidos, setNaoLidos] = useState(naoLidosInicial);
 
   // Confere a cada 15 s se há recarga em andamento (começou pelo cartão, terminou...).
   useEffect(() => {
@@ -26,7 +28,11 @@ export function AppShell({ children, nome, recargaInicial }: { children: React.R
       if (document.visibilityState !== "visible") return;
       fetch("/api/app/recarga-atual", { cache: "no-store" })
         .then((r) => (r.ok ? r.json() : null))
-        .then((d) => vivo && d && setRecarga(d.id ?? null))
+        .then((d) => {
+          if (!vivo || !d) return;
+          setRecarga(d.id ?? null);
+          setNaoLidos(d.naoLidos ?? 0);
+        })
         .catch(() => {});
     }, 15_000);
     return () => {
@@ -49,7 +55,7 @@ export function AppShell({ children, nome, recargaInicial }: { children: React.R
               <div className="hello">Olá, {nome.split(" ")[0]}</div>
               <div className="name">{titulo}</div>
             </div>
-            <Link className="icon-btn" href="/ajuda" aria-label="Ajuda"><Ic n="help" /></Link>
+            <Link className="icon-btn" href="/avisos" aria-label="Avisos" onClick={() => setNaoLidos(0)}><Ic n="bell" />{naoLidos > 0 && <span className="pip" />}</Link>
           </div>
         )}
         <div className="app-body">{children}</div>

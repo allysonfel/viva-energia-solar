@@ -13,6 +13,8 @@ import { getSettings } from "../settings";
 import { abrirAviso, resolverAviso } from "../avisos";
 import { cobrarRecarga } from "../carteira";
 import { listarTarifas, precoNoHorario } from "../tarifas";
+import { avisarMotorista } from "../notificar";
+import { brl } from "../format";
 import { lerFrame, lerMedidor, type Call } from "./tipos";
 
 type Pendente = { resolve: (v: Record<string, unknown>) => void; reject: (e: Error) => void; timer: NodeJS.Timeout };
@@ -314,6 +316,11 @@ const HANDLERS: Record<string, Handler> = {
       return { id: r.id, fechadas };
     });
     for (const f of fechadas) await cobrarRecarga(f.id);
+    if (motoristaId) {
+      const [x] = await sql<{ nome: string; preco: number }[]>`SELECT e.nome, r.preco_kwh_centavos AS preco FROM recargas r JOIN estacoes e ON e.id = r.estacao_id WHERE r.id = ${id}`;
+      if (st === "Accepted") avisarMotorista(motoristaId, "Recarga iniciada", `${x?.nome ?? "Estação"} · conector ${n} · ${brl(x?.preco ?? 0)}/kWh`, `/recarga/${id}`);
+      else avisarMotorista(motoristaId, "Recarga não liberada", "O saldo da carteira está abaixo do mínimo. Adicione crédito e tente de novo.", "/carteira");
+    }
     return { transactionId: id, idTagInfo: { status: st } };
   },
 
@@ -357,6 +364,13 @@ const HANDLERS: Record<string, Handler> = {
             valor_centavos = ${energia === null ? sql`valor_centavos` : valor(energia, r.preco_kwh_centavos)}, atualizado_em = now()
           WHERE id = ${r.id}`;
         await cobrarRecarga(r.id);
+        await resolverAviso("recarga_longa", { estacao: c.estacaoId, recarga: r.id });
+        const [f] = await sql<{ motorista_id: number | null; energia_wh: number; valor_centavos: number; status: string; parada_solicitada: boolean }[]>`
+          SELECT motorista_id, energia_wh, valor_centavos, status, parada_solicitada FROM recargas WHERE id = ${r.id}`;
+        if (f?.motorista_id) {
+          const titulo = f.parada_solicitada ? "Recarga encerrada: saldo acabou" : f.status === "interrompida" ? "Recarga interrompida" : "Recarga concluída";
+          avisarMotorista(f.motorista_id, titulo, `${(f.energia_wh / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} kWh · ${brl(f.valor_centavos)}. Toque para ver o recibo.`, `/recibo/${r.id}`);
+        }
       }
     }
     // Depois de debitar, o saldo pode estar abaixo do mínimo: isso não
@@ -388,6 +402,7 @@ async function pararSeSaldoAcabou(c: Conexao, recargaId: number, motoristaId: nu
   const proximaWh = (x.potencia_w * (s.leituraSeg + 5)) / 3600;
   if (x.valor_centavos + valor(proximaWh, x.preco_kwh_centavos) < x.saldo_centavos) return;
   await sql`UPDATE recargas SET parada_solicitada = true WHERE id = ${recargaId}`;
+  avisarMotorista(motoristaId, "Seu saldo está acabando", "A recarga vai parar agora para não passar do saldo da carteira.", `/recarga/${recargaId}`);
   console.log(`[ocpp] ${c.codigo} recarga #${recargaId}: saldo acabou, pedindo parada`);
   enviar(c.codigo, "RemoteStopTransaction", { transactionId: recargaId }).catch(() => {});
   sql`INSERT INTO comandos (estacao_id, acao, descricao, payload, status) VALUES (${c.estacaoId}, 'RemoteStopTransaction', ${`Parar recarga #${recargaId} (saldo acabou)`}, ${sql.json({ transactionId: recargaId })}, 'enviado')`.catch(() => {});
@@ -431,6 +446,13 @@ export async function rotinaOffline() {
       AND (ultimo_contato IS NOT NULL OR criado_em < now() - make_interval(mins => ${s.offlineMinutos}))`;
   for (const e of offline) {
     await abrirAviso("offline", { estacao: e.id }, `${e.nome} offline`, e.ultimo_contato ? "Sem comunicação com a central." : "Nunca se conectou à central.");
+  }
+  // Recarga aberta há mais de 12 h: carregador pode ter caído sem mandar o fim.
+  const longas = await sql<{ id: number; estacao_id: number; nome: string }[]>`
+    SELECT r.id, r.estacao_id, e.nome FROM recargas r JOIN estacoes e ON e.id = r.estacao_id
+    WHERE r.status = 'em_andamento' AND r.inicio < now() - interval '12 hours'`;
+  for (const r of longas) {
+    await abrirAviso("recarga_longa", { estacao: r.estacao_id, recarga: r.id }, `Recarga #${r.id} aberta há mais de 12 h`, `${r.nome}: confira o carregador ou pare a recarga pelo painel.`);
   }
   await sql`DELETE FROM ocpp_mensagens WHERE em < now() - interval '7 days'`;
 }

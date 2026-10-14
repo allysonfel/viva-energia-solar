@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Ic } from "./Ic";
+import { AtivarAvisos } from "./AtivarAvisos";
+import { inscreverPushEquipe } from "@/app/acoes-push";
 
 type Aviso = { id: number; tipo: string; titulo: string; texto: string; estacao_id: number | null; criado_em: string };
 
@@ -13,7 +15,7 @@ const ICONE: Record<string, [string, string]> = {
 };
 
 // Avisos abertos (estação offline, falha). Atualiza a cada 15 s.
-export function Sino() {
+export function Sino({ vapid }: { vapid: string | null }) {
   const [avisos, setAvisos] = useState<Aviso[]>([]);
   const [aberto, setAberto] = useState(false);
 
@@ -43,6 +45,7 @@ export function Sino() {
       </button>
       {aberto && (
         <div className="notif-pop">
+          <div className="n" style={{ display: "block", padding: "0 0 8px" }}><AtivarAvisos vapid={vapid} inscrever={inscreverPushEquipe} compacto /></div>
           {avisos.length === 0 && <div className="n"><span style={{ color: "var(--g600)" }}><Ic n="check" /></span><div><b>Tudo certo</b><div className="muted" style={{ fontSize: 12.5 }}>Nenhum aviso aberto.</div></div></div>}
           {avisos.map((a) => {
             const [ic, cor] = ICONE[a.tipo] ?? ["bell", "var(--muted)"];
