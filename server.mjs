@@ -10,7 +10,10 @@ import next from "next";
 import nextEnv from "@next/env";
 import { WebSocketServer } from "ws";
 
-const dev = process.env.NODE_ENV !== "production";
+// Modo dev só com "--dev" (npm run dev). Sem isso é produção, mesmo que
+// NODE_ENV não venha definido na hospedagem.
+const dev = process.argv.includes("--dev");
+if (!dev) process.env.NODE_ENV = "production";
 // .env.local antes de ler a porta (o Next só carregaria dentro do prepare).
 nextEnv.loadEnvConfig(process.cwd(), dev);
 const port = Number(process.env.PORT || 3000);
