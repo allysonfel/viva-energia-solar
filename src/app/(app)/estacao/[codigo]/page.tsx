@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireMotorista } from "@/lib/motorista";
-import { estacoesDoMapa, recargaEmAndamento, vouchersDisponiveis } from "@/lib/app";
+import { estacoesDoMapa, recargaEmAndamento, vouchersDisponiveis, maisProximasLivres } from "@/lib/app";
 import { listarTarifas, horaBrasilia } from "@/lib/tarifas";
 import { getSettings } from "@/lib/settings";
 import { EstacaoApp } from "./EstacaoApp";
@@ -22,9 +22,10 @@ export default async function Estacao({ params, searchParams }: { params: Promis
         <Link className="btn btn-dark" href="/ler">Ler outro código</Link>
       </div>
     );
-  const [tarifas, vouchers] = await Promise.all([listarTarifas(), vouchersDisponiveis(m.id, e.id)]);
+  const [tarifas, vouchers, todas] = await Promise.all([listarTarifas(), vouchersDisponiveis(m.id, e.id), estacoesDoMapa()]);
+  const proximas = e.lat !== null && e.lng !== null ? maisProximasLivres(todas, { lat: e.lat, lng: e.lng }, e.codigo) : [];
   return (
     <EstacaoApp e={e} conectorInicial={Number(c) || null} saldo={m.saldo_centavos} saldoMinimo={s.saldoMinimoCentavos} meusConectores={m.conectores}
-      tarifas={tarifas} horaAgora={horaBrasilia()} vouchers={vouchers.map((v) => ({ mv: v.mv, codigo: v.codigo, pct: v.pct }))} />
+      tarifas={tarifas} horaAgora={horaBrasilia()} vouchers={vouchers.map((v) => ({ mv: v.mv, codigo: v.codigo, pct: v.pct }))} proximas={proximas} />
   );
 }

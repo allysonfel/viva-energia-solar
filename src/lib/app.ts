@@ -91,6 +91,26 @@ export async function historico(motorista: number, limite = 50): Promise<Recarga
   return sql<RecargaApp[]>`SELECT ${COLUNAS} ${ORIGEM} WHERE r.motorista_id = ${motorista} AND r.status <> 'recusada' ORDER BY r.inicio DESC LIMIT ${limite}`;
 }
 
+// As estações com conector livre mais perto de um ponto (pedido do cliente:
+// estação ocupada, o motorista já vê para onde ir).
+export function maisProximasLivres(todas: EstacaoApp[], de: { lat: number; lng: number }, exceto: string, n = 2) {
+  const r = (x: number) => (x * Math.PI) / 180;
+  const km = (b: { lat: number; lng: number }) => {
+    const h = Math.sin(r(b.lat - de.lat) / 2) ** 2 + Math.cos(r(de.lat)) * Math.cos(r(b.lat)) * Math.sin(r(b.lng - de.lng) / 2) ** 2;
+    return 12742 * Math.asin(Math.sqrt(h));
+  };
+  return todas
+    .filter((e): e is EstacaoApp & { lat: number; lng: number } => e.codigo !== exceto && e.lat !== null && e.lng !== null && e.conectores.some((c) => c.situacao === "disponivel"))
+    .map((e) => ({
+      codigo: e.codigo, nome: e.nome, bairro: e.bairro, km: km(e), preco: e.preco_agora,
+      livres: e.conectores.filter((c) => c.situacao === "disponivel").length,
+      tipos: [...new Set(e.conectores.filter((c) => c.situacao === "disponivel").map((c) => c.tipo))],
+    }))
+    .sort((a, b) => a.km - b.km)
+    .slice(0, n);
+}
+export type Proxima = ReturnType<typeof maisProximasLivres>[number];
+
 // kg de CO₂ evitados por kWh (carro elétrico x a combustão, referência do protótipo).
 export const CO2_POR_KWH = 0.52;
 

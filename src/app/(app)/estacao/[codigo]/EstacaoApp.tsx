@@ -6,11 +6,11 @@ import { useRouter } from "next/navigation";
 import { Badge } from "@/components/Badge";
 import { Ic } from "@/components/Ic";
 import { brl, kw } from "@/lib/format";
-import type { EstacaoApp as Est } from "@/lib/app";
+import type { EstacaoApp as Est, Proxima } from "@/lib/app";
 import type { Tarifa } from "@/lib/tarifas";
 import { iniciarRecargaApp, type Resposta } from "../../acoes";
 
-export function EstacaoApp({ e, conectorInicial, saldo, saldoMinimo, meusConectores, tarifas, horaAgora, vouchers }: {
+export function EstacaoApp({ e, conectorInicial, saldo, saldoMinimo, meusConectores, tarifas, horaAgora, vouchers, proximas }: {
   e: Est;
   conectorInicial: number | null;
   saldo: number;
@@ -19,6 +19,7 @@ export function EstacaoApp({ e, conectorInicial, saldo, saldoMinimo, meusConecto
   tarifas: Tarifa[];
   horaAgora: number;
   vouchers: { mv: number; codigo: string; pct: number }[];
+  proximas: Proxima[];
 }) {
   const [voucher, setVoucher] = useState<number | null>(vouchers[0]?.mv ?? null);
   const router = useRouter();
@@ -101,7 +102,7 @@ export function EstacaoApp({ e, conectorInicial, saldo, saldoMinimo, meusConecto
           {off ? (
             <div className="box" style={{ background: "var(--red-bg)", borderColor: "#F2C4C7" }}>
               <div className="row" style={{ color: "var(--red)", fontWeight: 800 }}><Ic n="alert" />Estação temporariamente indisponível</div>
-              <div className="muted" style={{ fontSize: 13, marginTop: 6 }}>A equipe técnica já foi avisada. Veja outras estações no mapa.</div>
+              <div className="muted" style={{ fontSize: 13, marginTop: 6 }}>A equipe técnica já foi avisada.{proximas.length ? " Veja as estações livres mais perto:" : " Veja outras estações no mapa."}</div>
             </div>
           ) : (
             <>
@@ -121,6 +122,21 @@ export function EstacaoApp({ e, conectorInicial, saldo, saldoMinimo, meusConecto
                 );
               })}
             </>
+          )}
+          {proximas.length > 0 && (
+            <div className="box" style={off || !livres.length ? { borderColor: "var(--g300)", background: "var(--g50)" } : undefined}>
+              <div className="box-title">{off || !livres.length ? "Estações livres mais perto" : "Se estiver ocupada, as mais perto"}</div>
+              {proximas.map((p) => (
+                <Link key={p.codigo} className="list-item" href={`/estacao/${encodeURIComponent(p.codigo)}`} style={{ textDecoration: "none", color: "inherit" }}>
+                  <span className="li-ic"><Ic n="pin" /></span>
+                  <div className="li-main">
+                    <b>{p.nome}</b>
+                    <small>{p.km < 1 ? `${Math.round(p.km * 1000)} m` : `${p.km.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} km`} daqui · {p.livres} {p.livres === 1 ? "conector livre" : "conectores livres"} · {p.tipos.join(", ")}</small>
+                  </div>
+                  <Ic n="right" />
+                </Link>
+              ))}
+            </div>
           )}
           {tarifas.length > 0 && (
             <div className="box" style={{ marginTop: 6 }}>
