@@ -4,6 +4,7 @@ import { useActionState, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Ic } from "@/components/Ic";
+import { ConfirmarEncerrar } from "@/components/ConfirmarEncerrar";
 import { brl, kwh, kw } from "@/lib/format";
 import type { RecargaApp } from "@/lib/app";
 import { pararRecargaApp, type Resposta } from "../../acoes";
@@ -16,6 +17,7 @@ export function AoVivo({ inicial }: { inicial: RecargaApp }) {
   const [r, setR] = useState(inicial);
   const [agora, setAgora] = useState(() => Date.now());
   const [res, parar, parando] = useActionState<Resposta, FormData>(pararRecargaApp, null);
+  const [confirmar, setConfirmar] = useState(false);
 
   useEffect(() => {
     const t = setInterval(() => {
@@ -72,13 +74,18 @@ export function AoVivo({ inicial }: { inicial: RecargaApp }) {
         <span>Tarifa{r.tarifa_nome ? ` ${r.tarifa_nome.toLowerCase()}` : ""}{r.voucher ? ` com ${r.voucher} (-${r.desconto_pct}%)` : ""}</span>
         <b className="mono" style={{ color: "#fff" }}>{brl(r.preco_kwh_centavos)}/kWh</b>
       </div>
-      {res && <div className={`aviso ${res.ok ? "info" : "erro"}`}>{res.texto}</div>}
-      <form action={parar} style={{ marginTop: "auto" }}>
-        <input type="hidden" name="id" value={r.id} />
-        <button className="btn btn-block" style={{ background: "#fff", color: "var(--g900)" }} disabled={parando || !!res?.ok}>
-          <Ic n="stop" />{parando || res?.ok ? "Encerrando..." : "Encerrar recarga"}
-        </button>
-      </form>
+      <button className="btn btn-block" style={{ background: "#fff", color: "var(--g900)", marginTop: "auto" }} onClick={() => setConfirmar(true)} disabled={parando || !!res?.ok}>
+        <Ic n="stop" />{parando || res?.ok ? "Encerrando..." : "Encerrar recarga"}
+      </button>
+      {confirmar && (
+        <>
+          <div className="sheet-bg" onClick={() => !parando && setConfirmar(false)} />
+          <div className="sheet" style={{ color: "var(--ink)" }}>
+            <div className="grab" />
+            <ConfirmarEncerrar r={r} parar={parar} parando={parando} res={res} onCancelar={() => setConfirmar(false)} />
+          </div>
+        </>
+      )}
     </div>
   );
 }

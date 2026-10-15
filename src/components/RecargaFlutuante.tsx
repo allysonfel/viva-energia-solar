@@ -4,6 +4,7 @@ import { useActionState, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Ic } from "./Ic";
+import { ConfirmarEncerrar } from "./ConfirmarEncerrar";
 import { brl, kwh, kw } from "@/lib/format";
 import type { RecargaApp } from "@/lib/app";
 import { pararRecargaApp, type Resposta } from "@/app/(app)/acoes";
@@ -16,6 +17,12 @@ const dois = (n: number) => String(n).padStart(2, "0");
 export function RecargaFlutuante({ id }: { id: number }) {
   const router = useRouter();
   const [aberto, setAberto] = useState(false);
+  const [confirmar, setConfirmar] = useState(false);
+  const fechar = () => {
+    if (parando) return;
+    setAberto(false);
+    setConfirmar(false);
+  };
   const [r, setR] = useState<RecargaApp | null>(null);
   const [agora, setAgora] = useState(() => Date.now());
   const [res, parar, parando] = useActionState<Resposta, FormData>(pararRecargaApp, null);
@@ -55,13 +62,16 @@ export function RecargaFlutuante({ id }: { id: number }) {
       </button>
       {aberto && (
         <>
-          <div className="sheet-bg" onClick={() => setAberto(false)} />
+          <div className="sheet-bg" onClick={fechar} />
           <div className="sheet">
             <div className="grab" />
+            {confirmar && r ? (
+              <ConfirmarEncerrar r={r} parar={parar} parando={parando} res={res} onCancelar={() => setConfirmar(false)} />
+            ) : (
             <div style={{ padding: "8px 18px 20px" }}>
               <div className="between" style={{ marginBottom: 4 }}>
                 <span className="badge b-blue"><span className="pulse" style={{ width: 8, height: 8 }} />Recarga em andamento</span>
-                <button className="icon-btn" onClick={() => setAberto(false)} aria-label="Fechar"><Ic n="close" /></button>
+                <button className="icon-btn" onClick={fechar} aria-label="Fechar"><Ic n="close" /></button>
               </div>
               {!r ? (
                 <div className="muted" style={{ padding: "18px 0" }}>Carregando...</div>
@@ -85,17 +95,14 @@ export function RecargaFlutuante({ id }: { id: number }) {
                     <span className="muted">Valor até agora</span>
                     <b className="mono" style={{ fontSize: 20 }}>{brl(r.valor_centavos)}</b>
                   </div>
-                  {res && <div className={`aviso ${res.ok ? "info" : "erro"}`}>{res.texto}</div>}
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                     <Link className="btn btn-ghost" href={`/recarga/${id}`} onClick={() => setAberto(false)}>Ver detalhes</Link>
-                    <form action={parar}>
-                      <input type="hidden" name="id" value={id} />
-                      <button className="btn btn-danger btn-block" disabled={parando || !!res?.ok}><Ic n="stop" />{parando || res?.ok ? "Encerrando..." : "Encerrar"}</button>
-                    </form>
+                    <button className="btn btn-danger btn-block" onClick={() => setConfirmar(true)}><Ic n="stop" />Encerrar</button>
                   </div>
                 </>
               )}
             </div>
+            )}
           </div>
         </>
       )}
