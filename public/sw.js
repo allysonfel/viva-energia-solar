@@ -10,14 +10,23 @@ self.addEventListener("push", (e) => {
   try {
     d = e.data ? e.data.json() : {};
   } catch {}
+  const link = interno(d.link);
   e.waitUntil(
-    self.registration.showNotification(d.titulo || "Viva Energia", {
-      body: d.texto || "",
-      tag: d.tag || undefined,
-      data: { link: interno(d.link) },
-      icon: "/icone-192.png",
-      badge: "/icone-192.png",
-    }),
+    (async () => {
+      // Recarga terminou: tira o aviso de andamento dela da tela.
+      const fim = /^\/recibo\/(\d+)$/.exec(link);
+      if (fim) for (const n of await self.registration.getNotifications({ tag: `/recarga/${fim[1]}` })) n.close();
+      await self.registration.showNotification(d.titulo || "Viva Energia", {
+        body: d.texto || "",
+        tag: d.tag || undefined,
+        // Andamento da recarga atualiza sem som nem vibração.
+        silent: !!d.silencioso,
+        renotify: false,
+        data: { link },
+        icon: "/icone-192.png",
+        badge: "/icone-192.png",
+      });
+    })(),
   );
 });
 

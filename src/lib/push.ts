@@ -69,12 +69,12 @@ function vapid(endpoint: string): string {
 }
 
 // "expirada": o navegador cancelou a inscrição (apagar do banco).
-export async function enviarPush(i: Inscricao, dados: object): Promise<"ok" | "expirada" | "falhou"> {
+export async function enviarPush(i: Inscricao, dados: object, ttl = 3600): Promise<"ok" | "expirada" | "falhou"> {
   if (!vapidPublica() || !inscricaoValida(i)) return "falhou";
   try {
     const r = await fetch(i.endpoint, {
       method: "POST",
-      headers: { Authorization: vapid(i.endpoint), "Content-Encoding": "aes128gcm", "Content-Type": "application/octet-stream", TTL: "3600", Urgency: "high" },
+      headers: { Authorization: vapid(i.endpoint), "Content-Encoding": "aes128gcm", "Content-Type": "application/octet-stream", TTL: String(ttl), Urgency: "high" },
       body: new Uint8Array(cifrar(i, Buffer.from(JSON.stringify(dados)))),
       signal: AbortSignal.timeout(10_000),
     });

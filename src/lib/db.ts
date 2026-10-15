@@ -354,6 +354,9 @@ ALTER TABLE recargas ADD COLUMN IF NOT EXISTS tarifa_nome TEXT;
 ALTER TABLE recargas ADD COLUMN IF NOT EXISTS preco_cheio_centavos INT;
 ALTER TABLE recargas ADD COLUMN IF NOT EXISTS voucher_id INT REFERENCES vouchers(id);
 ALTER TABLE recargas ADD COLUMN IF NOT EXISTS desconto_pct INT NOT NULL DEFAULT 0;
+-- Último aviso de andamento (push com a % da carga) mandado ao motorista.
+ALTER TABLE recargas ADD COLUMN IF NOT EXISTS progresso_aviso_em TIMESTAMPTZ;
+ALTER TABLE recargas ADD COLUMN IF NOT EXISTS progresso_aviso_soc INT;
 CREATE INDEX IF NOT EXISTS recargas_motorista_idx ON recargas (motorista_id, inicio DESC) WHERE motorista_id IS NOT NULL;
 `;
 

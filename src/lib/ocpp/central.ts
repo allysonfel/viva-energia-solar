@@ -13,7 +13,7 @@ import { getSettings } from "../settings";
 import { abrirAviso, resolverAviso } from "../avisos";
 import { cobrarRecarga } from "../carteira";
 import { listarTarifas, precoNoHorario } from "../tarifas";
-import { avisarMotorista } from "../notificar";
+import { avisarMotorista, avisarProgresso } from "../notificar";
 import { brl } from "../format";
 import { lerFrame, lerMedidor, type Call } from "./tipos";
 
@@ -342,7 +342,10 @@ const HANDLERS: Record<string, Handler> = {
           valor_centavos = ${valor(energia, r.preco_kwh_centavos)}, atualizado_em = now()
         WHERE id = ${r.id}`;
     }
-    if (r.motorista_id && !r.parada_solicitada) await pararSeSaldoAcabou(c, r.id, r.motorista_id);
+    if (r.motorista_id && !r.parada_solicitada) {
+      await pararSeSaldoAcabou(c, r.id, r.motorista_id);
+      avisarProgresso(r.id);
+    }
     return {};
   },
 
