@@ -1,4 +1,7 @@
-// Duas funções:
+// Três funções:
+// 0. Freio de volume por IP (janela de 1 min): o geral pega tudo; login,
+//    cadastro e exportações têm limite próprio, mais baixo. Passou, responde
+//    429. Webhooks ficam de fora (têm assinatura e não podem perder evento).
 // 1. Content-Security-Policy com nonce novo a cada requisição: só roda script
 //    do próprio sistema (o Next aplica o nonce nos scripts dele sozinho).
 // 2. Atalho de redirecionamento: sem o cookie da equipe, o painel manda para a
@@ -7,6 +10,23 @@
 //    validade, conta ativa e perfil são conferidos em cada página, action e rota.
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { dentroDoLimite, ipDe } from "@/lib/limiteRequisicoes";
+
+const LIMITE_GERAL = 240;
+const LIMITES: [regra: RegExp, max: number][] = [
+  [/^\/recuperar$/, 10],
+  [/^\/(entrar|cadastro|redefinir|painel\/entrar)$/, 20],
+  [/^\/painel\/(clientes|recargas|relatorios)\/exportar/, 10],
+  [/^\/painel\/clientes\/[^/]+\/dados/, 10],
+  [/^\/api\/app\/meus-dados/, 5],
+];
+
+function muitas(esperarSeg: number, api: boolean) {
+  const headers = { "Retry-After": String(esperarSeg) };
+  return api
+    ? Response.json({ erro: "Muitas requisições. Aguarde um pouco e tente de novo." }, { status: 429, headers })
+    : new NextResponse("Muitas requisições. Aguarde um pouco e tente de novo.", { status: 429, headers });
+}
 
 const PUBLICAS = ["/painel/entrar"];
 // Telas do app abertas sem login. /e/... é o QR code do carregador (manda para o login guardando o destino).
@@ -44,6 +64,17 @@ function csp(nonce: string): string {
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  if (!pathname.startsWith("/api/webhooks/")) {
+    const ip = ipDe(request.headers);
+    const api = pathname.startsWith("/api/");
+    const geral = dentroDoLimite(`g:${ip}`, LIMITE_GERAL);
+    if (!geral.ok) return muitas(geral.esperarSeg, api);
+    const regra = LIMITES.find(([r]) => r.test(pathname));
+    if (regra) {
+      const r = dentroDoLimite(`${regra[0].source}:${ip}`, regra[1]);
+      if (!r.ok) return muitas(r.esperarSeg, api);
+    }
+  }
   const base = process.env.APP_URL || request.url;
   const doPainel = pathname === "/painel" || pathname.startsWith("/painel/") || pathname.startsWith("/api/painel/");
   if (doPainel && !PUBLICAS.includes(pathname) && !request.cookies.has("viva_equipe")) {
