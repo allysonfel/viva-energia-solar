@@ -11,6 +11,9 @@
 import { Encrypter } from "age-encryption";
 import { PutObjectCommand, HeadObjectCommand, ListObjectsV2Command, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import postgres from "postgres";
+import { mkdtemp, writeFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { exigir, bucket, chaveDoBackup, paraApagar, rodar, mb, PREFIXO } from "./comum.mjs";
 
 const url = exigir("DATABASE_URL");
@@ -36,7 +39,17 @@ async function main() {
   const dump = await rodar("pg_dump", ["--format=custom", "--compress=6"], { url });
   if (dump.length < 1024) throw new Error(`Dump pequeno demais (${dump.length} bytes).`);
 
-  const lista = (await rodar("pg_restore", ["--list"], { entrada: dump })).toString();
+  // O --list lê só o índice e sai: pela entrada padrão o resto do dump bate
+  // num cano fechado (EPIPE). Por isso a conferência é feita num arquivo.
+  const tmp = await mkdtemp(join(tmpdir(), "backup-"));
+  let lista;
+  try {
+    const arquivo = join(tmp, "conferir.dump");
+    await writeFile(arquivo, dump);
+    lista = (await rodar("pg_restore", ["--list", arquivo])).toString();
+  } finally {
+    await rm(tmp, { recursive: true, force: true });
+  }
   for (const tabela of ["usuarios", "estacoes", "conectores", "recargas", "audit_log"]) {
     if (!new RegExp(`TABLE DATA public ${tabela} `).test(lista)) throw new Error(`Tabela ${tabela} ausente no dump.`);
   }

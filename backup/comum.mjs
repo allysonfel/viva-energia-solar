@@ -76,6 +76,9 @@ export function rodar(bin, args, { url, entrada } = {}) {
     p.stdout.on("data", (b) => out.push(b));
     p.stderr.on("data", (b) => (err += b));
     p.on("error", reject);
+    // Sem isto, um processo que fecha a entrada cedo (EPIPE) derruba o Node
+    // por fora do catch: a falha não vai para o audit_log.
+    p.stdin.on("error", reject);
     p.on("close", (code) => {
       if (code === 0) resolve(Buffer.concat(out));
       else reject(new Error(`${bin} saiu com código ${code}: ${err.trim().slice(0, 500)}`));
