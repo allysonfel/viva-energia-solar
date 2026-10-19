@@ -29,12 +29,14 @@ export type LinhaEstacao = {
   taxas: number; repasse: number; resultado: number;
 };
 
-export async function gerarRelatorio(p: Periodo, opcoes: { estacao?: number | null; parceiro?: number | null }) {
+// soReais: deixa de fora as estações simuladas (dados de demonstração).
+export async function gerarRelatorio(p: Periodo, opcoes: { estacao?: number | null; parceiro?: number | null; soReais?: boolean }) {
   const { ini, fim } = intervalo(p);
   const s = await getSettings();
   const filtro = sql`
     ${opcoes.estacao ? sql`AND e.id = ${opcoes.estacao}` : sql``}
-    ${opcoes.parceiro ? sql`AND e.parceiro_id = ${opcoes.parceiro}` : sql``}`;
+    ${opcoes.parceiro ? sql`AND e.parceiro_id = ${opcoes.parceiro}` : sql``}
+    ${opcoes.soReais ? sql`AND NOT e.simulada` : sql``}`;
   const rows = await sql<Omit<LinhaEstacao, "taxas" | "repasse" | "resultado">[]>`
     SELECT e.id, e.nome, pa.nome AS parceiro, coalesce(pa.repasse_pct, 0)::float AS repasse_pct,
       count(r.id) FILTER (WHERE r.motorista_id IS NOT NULL)::int AS recargas,

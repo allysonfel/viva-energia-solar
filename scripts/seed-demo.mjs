@@ -1,7 +1,9 @@
 // Dados de demonstração (desenvolvimento e apresentação): as 6 estações do
-// protótipo como carregadores SIMULADOS, 3 parceiros, as 4 faixas de tarifa,
-// 2 vouchers, os 12 clientes do protótipo (senha viva-demo-2026) com
+// protótipo como carregadores SIMULADOS, 3 parceiros, 2 vouchers, os 12 clientes do protótipo (senha viva-demo-2026) com
 // carteira, um operador e um parceiro de teste, e o histórico dos últimos 25 dias.
+// Números da operação passados pelo Miguel em 2026-10-16: R$ 1,70/kWh,
+// custo da energia R$ 0,85/kWh e repasse de 50% para cada parceiro. Sem
+// faixas de horário (preço único): a grade fica vazia e vale o preço da estação.
 // Só roda em banco sem estações. Rodar com o sistema já tendo subido uma vez
 // (as tabelas são criadas na primeira subida):
 //   DATABASE_URL=... node scripts/seed-demo.mjs
@@ -23,11 +25,14 @@ if (n > 0) {
   process.exit(0);
 }
 
+const PRECO = 170; // centavos por kWh
+const CUSTO = 85;
+
 const parceiros = {};
 for (const [nome, contato, pct] of [
-  ["Hotel Litoral Tambaú", "Recepção (83) 3000-0000", 15],
-  ["Condomínio Altiplano Park", "Síndico", 10],
-  ["Posto parceiro BR-230", "Gerente do posto", 12],
+  ["Hotel Litoral Tambaú", "Recepção (83) 3000-0000", 50],
+  ["Condomínio Altiplano Park", "Síndico", 50],
+  ["Posto parceiro BR-230", "Gerente do posto", 50],
 ]) {
   const [p] = await sql`INSERT INTO parceiros (nome, contato, repasse_pct) VALUES (${nome}, ${contato}, ${pct}) RETURNING id`;
   parceiros[nome] = p.id;
@@ -47,7 +52,7 @@ for (const [codigo, nome, end, bairro, lat, lng, parceiro, cons] of ESTACOES) {
   const [e] = await sql`
     INSERT INTO estacoes (codigo, nome, endereco, bairro, cidade, lat, lng, parceiro_id, simulada, preco_kwh_centavos, custo_kwh_centavos)
     VALUES (${codigo}, ${nome}, ${end}, ${bairro}, ${bairro.includes("Cabedelo") ? "Cabedelo" : "João Pessoa"}, ${lat}, ${lng},
-      ${parceiro ? parceiros[parceiro] : null}, true, 189, 98)
+      ${parceiro ? parceiros[parceiro] : null}, true, ${PRECO}, ${CUSTO})
     RETURNING id`;
   for (const [i, [tipo, kw]] of cons.entries()) {
     await sql`INSERT INTO conectores (estacao_id, numero, tipo, potencia_w) VALUES (${e.id}, ${i + 1}, ${tipo}, ${kw * 1000})`;
@@ -59,16 +64,6 @@ for (const [codigo, nome, end, bairro, lat, lng, parceiro, cons] of ESTACOES) {
 for (const t of ["VIVA-OPERACAO", "RFID-TECNICO-01"]) {
   await sql`INSERT INTO tags (id_tag, descricao, tipo) VALUES (${t}, 'Cartão da operação', 'operacao') ON CONFLICT DO NOTHING`;
 }
-
-// Faixas de tarifa do protótipo.
-const TARIFAS = [["Madrugada", 0, 6, 149, "#BFEBD5"], ["Comercial", 6, 18, 189, "#34B37A"], ["Ponta", 18, 21, 239, "#0B3B2A"], ["Noite", 21, 24, 179, "#7BCFA6"]];
-for (const [nome, ini, fim, preco, cor] of TARIFAS) {
-  await sql`INSERT INTO tarifas (nome, hora_inicio, hora_fim, preco_kwh_centavos, cor) VALUES (${nome}, ${ini}, ${fim}, ${preco}, ${cor})`;
-}
-const tarifaDe = (d) => {
-  const h = new Date(d.getTime() - 3 * 3_600_000).getUTCHours();
-  return TARIFAS.find(([, i, f]) => h >= i && h < f);
-};
 
 const [vBoas] = await sql`INSERT INTO vouchers (codigo, pct, descricao, limite_usos) VALUES ('VIVA20', 20, 'Boas-vindas · primeira recarga', 500) RETURNING id`;
 await sql`INSERT INTO vouchers (codigo, pct, descricao, valido_ate) VALUES ('MADRUGADA10', 10, 'Recarregue de madrugada', ${new Date(Date.now() + 60 * 86_400_000)})`;
@@ -125,13 +120,12 @@ for (let d = 25; d >= 1; d--) {
       // 92% das recargas são de clientes do app; o resto, da operação (sem cobrança).
       const motorista = Math.random() < 0.92 ? motoristas[Math.floor(Math.random() * motoristas.length)] : null;
       const interrompida = Math.random() < 0.04;
-      const [nomeT, , , preco] = tarifaDe(inicio);
-      const valor = Math.round((wh * preco) / 1000);
+      const valor = Math.round((wh * PRECO) / 1000);
       const [r] = await sql`
         INSERT INTO recargas (estacao_id, conector_numero, id_tag, motorista_id, origem, status, inicio, fim, medidor_inicio_wh, medidor_fim_wh,
           energia_wh, preco_kwh_centavos, preco_cheio_centavos, tarifa_nome, custo_kwh_centavos, valor_centavos, motivo_fim)
         VALUES (${e.id}, ${conector}, ${motorista ? "MDEMO" : "VIVA-OPERACAO"}, ${motorista}, ${motorista ? "app" : "painel"},
-          ${interrompida ? "interrompida" : "concluida"}, ${inicio}, ${fim}, ${1_000_000}, ${1_000_000 + wh}, ${wh}, ${preco}, ${preco}, ${nomeT}, 98,
+          ${interrompida ? "interrompida" : "concluida"}, ${inicio}, ${fim}, ${1_000_000}, ${1_000_000 + wh}, ${wh}, ${PRECO}, ${PRECO}, ${null}, ${CUSTO},
           ${valor}, ${interrompida ? "PowerLoss" : "EVDisconnected"})
         RETURNING id`;
       if (motorista) {
@@ -167,7 +161,7 @@ for (const [nome, email, perfil, parceiro] of demo) {
   await sql`INSERT INTO usuarios (nome, email, senha_hash, perfil, parceiro_id) VALUES (${nome}, ${email}, ${hash("viva-demo-2026")}, ${perfil}, ${parceiro}) ON CONFLICT (email) DO NOTHING`;
 }
 
-console.log(`Pronto: ${ids.length} estações simuladas, 3 parceiros, 4 faixas de tarifa, 2 vouchers, ${motoristas.length} clientes, ${total} recargas de histórico.`);
+console.log(`Pronto: ${ids.length} estações simuladas, 3 parceiros (50%), R$ 1,70/kWh, 2 vouchers, ${motoristas.length} clientes, ${total} recargas de histórico.`);
 console.log("Senha de demonstração viva-demo-2026: painel operacao@demo.local e hotel@demo.local; app ana@demo.local (e os outros clientes, primeiro nome @demo.local).");
 console.log("Reinicie o sistema para os carregadores simulados conectarem.");
 await sql.end();

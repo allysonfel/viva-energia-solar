@@ -127,7 +127,7 @@ async function aberto(v: Virtual) {
   v.conectado = true;
   anotar(v, "Conectado à central");
   const r = await chamar(v, "BootNotification", {
-    chargePointVendor: "Viva (simulado)", chargePointModel: "SIM-DC", firmwareVersion: "sim-1.0", chargePointSerialNumber: v.codigo,
+    chargePointVendor: "Sice (simulado)", chargePointModel: "UE-WW80", firmwareVersion: "sim-1.0", chargePointSerialNumber: v.codigo,
   });
   v.heartbeatSeg = Math.min(Math.max(Number(r?.interval) || 60, 10), 3600);
   await status(v, 0, v.falha ? "Faulted" : v.inoperante ? "Unavailable" : "Available", v.falha ? "OtherError" : "NoError");

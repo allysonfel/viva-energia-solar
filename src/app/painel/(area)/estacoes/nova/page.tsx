@@ -53,11 +53,11 @@ export default async function NovaEstacao({ searchParams }: { searchParams: Prom
           </div>
           <div className="field">
             <label htmlFor="preco">Preço por kWh (R$)</label>
-            <input className="input mono" id="preco" name="preco" required defaultValue="1,89" maxLength={8} />
+            <input className="input mono" id="preco" name="preco" required defaultValue="1,70" maxLength={8} />
           </div>
           <div className="field">
             <label htmlFor="custo">Custo da energia por kWh (R$)</label>
-            <input className="input mono" id="custo" name="custo" defaultValue="0,98" maxLength={8} />
+            <input className="input mono" id="custo" name="custo" defaultValue="0,85" maxLength={8} />
           </div>
           <div className="field full">
             <label htmlFor="parceiro">Parceiro / local</label>

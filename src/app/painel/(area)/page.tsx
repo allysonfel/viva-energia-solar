@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { cookies } from "next/headers";
+import { revalidatePath } from "next/cache";
 import { requireUser, parceiroDoEscopo } from "@/lib/session";
 import { sql } from "@/lib/db";
 import { listarEstacoes } from "@/lib/estacoes";
@@ -9,23 +11,37 @@ import { AutoAtualizar } from "@/components/AutoAtualizar";
 import { GraficoReceitaCusto } from "@/components/Grafico";
 import { gerarRelatorio } from "@/lib/relatorios";
 
+// Visão "só dados reais": esconde as estações simuladas e tudo que vem delas.
+// Preferência de quem está olhando (cookie); começa desligada.
+const COOKIE_REAIS = "viva_painel_reais";
+
+async function alternarDadosReais() {
+  "use server";
+  await requireUser();
+  const jar = await cookies();
+  if (jar.get(COOKIE_REAIS)?.value === "1") jar.delete({ name: COOKIE_REAIS, path: "/painel" });
+  else jar.set(COOKIE_REAIS, "1", { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/painel", maxAge: 365 * 86_400 });
+  revalidatePath("/painel");
+}
+
 export default async function VisaoGeral({ searchParams }: { searchParams: Promise<{ erro?: string }> }) {
   const u = await requireUser();
   const { erro } = await searchParams;
   const parceiro = parceiroDoEscopo(u);
-  const escopo = parceiro ? sql`AND e.parceiro_id = ${parceiro}` : sql``;
+  const soReais = (await cookies()).get(COOKIE_REAIS)?.value === "1";
+  const escopo = sql`${parceiro ? sql`AND e.parceiro_id = ${parceiro}` : sql``} ${soReais ? sql`AND NOT e.simulada` : sql``}`;
   // Mesmos números do relatório (receita = recargas cobradas de motoristas).
   const [mes, anterior, ultimos] = await Promise.all([
-    gerarRelatorio("mes", { parceiro }),
-    gerarRelatorio("mes_anterior", { parceiro }),
-    gerarRelatorio("30d", { parceiro }),
+    gerarRelatorio("mes", { parceiro, soReais }),
+    gerarRelatorio("mes_anterior", { parceiro, soReais }),
+    gerarRelatorio("30d", { parceiro, soReais }),
   ]);
   const m = { centavos: mes.total.receita, wh: mes.total.wh, custo: mes.total.custo, n: mes.total.recargas, whTotal: mes.total.wh + mes.total.operacao_wh };
-  const estacoes = await listarEstacoes(parceiro);
+  const estacoes = (await listarEstacoes(parceiro)).filter((e) => !soReais || !e.simulada);
   const andamento = await sql<{ id: number; estacao: string; estacao_id: number; conector_numero: number; energia_wh: number; potencia_w: number; valor_centavos: number; inicio: Date }[]>`
     SELECT r.id, e.nome AS estacao, r.estacao_id, r.conector_numero, r.energia_wh, r.potencia_w, r.valor_centavos, r.inicio
     FROM recargas r JOIN estacoes e ON e.id = r.estacao_id WHERE r.status = 'em_andamento' ${escopo} ORDER BY r.inicio`;
-  const { linhas } = await buscarRecargas({ estacao: null, periodo: "tudo", status: null, busca: "" }, parceiro, 6);
+  const { linhas } = await buscarRecargas({ estacao: null, periodo: "tudo", status: null, busca: "", soReais }, parceiro, 6);
   const margem = m.centavos > 0 ? ((m.centavos - m.custo) / m.centavos) * 100 : null;
   const custoKwh = m.whTotal > 0 ? Math.round((m.custo * 1000) / m.whTotal) : null;
   const ticket = m.n > 0 ? Math.round(m.centavos / m.n) : null;
@@ -34,6 +50,12 @@ export default async function VisaoGeral({ searchParams }: { searchParams: Promi
     <>
       <AutoAtualizar ms={10_000} />
       {erro === "permissao" && <div className="aviso erro">Seu perfil não tem acesso a essa tela.</div>}
+      <form action={alternarDadosReais} style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 10, marginBottom: 16 }}>
+        <span className="muted" style={{ fontSize: 13 }}>{soReais ? "Mostrando só dados reais (sem estações simuladas)" : "Mostrando dados de demonstração"}</span>
+        <button type="submit" className={soReais ? "btn btn-ghost btn-sm" : "btn btn-dark btn-sm"} aria-pressed={!soReais}>
+          Dados de demonstração: {soReais ? "desligado" : "ligado"}
+        </button>
+      </form>
       <div className="kpis">
         <div className="kpi hero"><small>Receita no mês</small><b>{brl(m.centavos)}</b><div className="d">mês passado {brl(anterior.total.receita)}</div></div>
         <div className="kpi"><small>Energia vendida</small><b>{kwh(m.wh, 0)} kWh</b><div className="d">no mês</div></div>

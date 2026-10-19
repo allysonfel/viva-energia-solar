@@ -4,7 +4,8 @@ import { sql } from "./db";
 export const PERIODOS = { hoje: "Hoje", "7d": "Últimos 7 dias", mes: "Este mês", "30d": "Últimos 30 dias", tudo: "Tudo" } as const;
 export type Periodo = keyof typeof PERIODOS;
 
-export type Filtro = { estacao: number | null; periodo: Periodo; status: string | null; busca: string };
+// soReais: deixa de fora as estações simuladas (dados de demonstração).
+export type Filtro = { estacao: number | null; periodo: Periodo; status: string | null; busca: string; soReais?: boolean };
 
 export function lerFiltro(q: Record<string, string | undefined>): Filtro {
   const periodo = (q.p && q.p in PERIODOS ? q.p : "7d") as Periodo;
@@ -32,6 +33,7 @@ export async function buscarRecargas(f: Filtro, parceiro: number | null, limite 
     ${parceiro ? sql`AND e.parceiro_id = ${parceiro}` : sql``}
     ${f.estacao ? sql`AND r.estacao_id = ${f.estacao}` : sql``}
     ${f.status ? sql`AND r.status = ${f.status}` : sql``}
+    ${f.soReais ? sql`AND NOT e.simulada` : sql``}
     ${buscaId ? sql`AND r.id = ${buscaId}` : f.busca ? sql`AND r.id_tag ILIKE ${"%" + f.busca.replace(/[%_\\]/g, "") + "%"}` : sql``}`;
   const linhas = await sql<LinhaRecarga[]>`
     SELECT r.id, e.nome AS estacao, r.estacao_id, r.conector_numero, c.tipo || ' · ' || (c.potencia_w / 1000) || ' kW' AS conector,
