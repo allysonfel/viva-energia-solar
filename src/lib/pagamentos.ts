@@ -17,6 +17,8 @@ export type Provedor = {
   nome: string;
   simulado: boolean;
   cartao: boolean;
+  // Nome do intermediador mostrado ao motorista (null no simulado).
+  intermediador: string | null;
   criarPix(valorCentavos: number, ref: string, cliente: ClientePix): Promise<Pix>;
   // token = o que o formulário do gateway devolve (no simulado: final do cartão).
   cobrarCartao(valorCentavos: number, token: { final: string; bandeira: string }, ref: string): Promise<ResultadoCartao>;
@@ -43,6 +45,7 @@ const simulado: Provedor = {
   nome: "simulado",
   simulado: true,
   cartao: true,
+  intermediador: null,
   async criarPix(valor) {
     const id = "SIM" + randomBytes(10).toString("hex").toUpperCase();
     return { provedorId: id, copiaECola: brCode(valor, id.slice(0, 25)), expiraEm: new Date(Date.now() + 30 * 60_000) };
@@ -58,6 +61,7 @@ const syncpay: Provedor = {
   nome: "syncpay",
   simulado: false,
   cartao: false,
+  intermediador: "SyncPay",
   async criarPix(valor, ref, cliente) {
     const c = await criarCobrancaPix(valor, `Crédito Viva Energia (${ref})`, cliente);
     // A tela mostra 30 min; se o banco confirmar depois, o crédito entra igual.

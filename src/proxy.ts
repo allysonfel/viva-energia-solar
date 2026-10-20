@@ -30,7 +30,7 @@ function muitas(esperarSeg: number, api: boolean) {
 
 const PUBLICAS = ["/painel/entrar"];
 // Telas do app abertas sem login. /e/... é o QR code do carregador (manda para o login guardando o destino).
-const PUBLICAS_APP = ["/entrar", "/cadastro", "/recuperar", "/redefinir", "/privacidade", "/manifest.webmanifest", "/sw.js", "/icone.svg"];
+const PUBLICAS_APP = ["/entrar", "/cadastro", "/recuperar", "/redefinir", "/privacidade", "/reembolso", "/manifest.webmanifest", "/sw.js", "/icone.svg"];
 
 // Imagens do mapa: o host das imagens (tiles) vem da mesma variável que o mapa usa.
 function hostMapa(): string {

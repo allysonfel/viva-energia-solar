@@ -7,6 +7,7 @@ import { brl, quando } from "@/lib/format";
 import { Ic } from "@/components/Ic";
 import { Credito } from "./Credito";
 import { MeusVouchers } from "./MeusVouchers";
+import { Empresa } from "@/components/Empresa";
 
 export default async function Carteira({ searchParams }: { searchParams: Promise<{ bemvindo?: string }> }) {
   const m = await requireMotorista();
@@ -63,6 +64,7 @@ export default async function Carteira({ searchParams }: { searchParams: Promise
           );
         })}
       </div>
+      <Empresa s={s} intermediador={provedorPagamentos().intermediador} />
     </div>
   );
 }

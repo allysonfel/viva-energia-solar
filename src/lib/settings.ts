@@ -14,11 +14,17 @@ export type Settings = {
   saldoMinimoCentavos: number;
   // WhatsApp do atendimento (só dígitos, com DDI), usado em Ajuda.
   suporteWhatsapp: string;
+  suporteEmail: string;
+  // Identificação legal mostrada na carteira e nas políticas (exigência do intermediador de pagamento).
+  razaoSocial: string;
+  cnpj: string;
   // Taxa média do gateway (Pix + cartão) em centésimos de %: 210 = 2,1%. Só para relatório.
   taxaPagamentoBp: number;
 };
 
-const PADRAO: Settings = { empresa: "Viva Energia", offlineMinutos: 5, heartbeatSeg: 60, leituraSeg: 15, saldoMinimoCentavos: 1000, suporteWhatsapp: "", taxaPagamentoBp: 210 };
+const PADRAO: Settings = { empresa: "Viva Energia", offlineMinutos: 5, heartbeatSeg: 60, leituraSeg: 15, saldoMinimoCentavos: 1000, suporteWhatsapp: "", suporteEmail: "", razaoSocial: "", cnpj: "", taxaPagamentoBp: 210 };
+
+export const EMAIL = /^[^\s@]{1,64}@[^\s@]{1,190}\.[a-z]{2,24}$/i;
 
 const faixa = (v: unknown, min: number, max: number, padrao: number) => {
   const n = Number(v);
@@ -37,6 +43,9 @@ export async function getSettings(): Promise<Settings> {
     saldoMinimoCentavos: faixa(d.saldoMinimoCentavos, 100, 50000, PADRAO.saldoMinimoCentavos),
     taxaPagamentoBp: faixa(d.taxaPagamentoBp, 0, 1500, PADRAO.taxaPagamentoBp),
     suporteWhatsapp: typeof d.suporteWhatsapp === "string" && /^\d{12,13}$/.test(d.suporteWhatsapp) ? d.suporteWhatsapp : "",
+    suporteEmail: typeof d.suporteEmail === "string" && EMAIL.test(d.suporteEmail) ? d.suporteEmail : "",
+    razaoSocial: typeof d.razaoSocial === "string" ? d.razaoSocial.trim().slice(0, 100) : "",
+    cnpj: typeof d.cnpj === "string" && /^\d{14}$/.test(d.cnpj) ? d.cnpj : "",
   };
 }
 

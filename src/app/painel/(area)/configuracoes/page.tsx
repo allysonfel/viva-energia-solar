@@ -3,6 +3,8 @@ import { requireUser } from "@/lib/session";
 import { getSettings, saveSettings } from "@/lib/settings";
 import { audit } from "@/lib/audit";
 import { centavosDe } from "@/lib/format";
+import { cnpjValido, cnpjFormatado } from "@/lib/cpf";
+import { EMAIL } from "@/lib/settings";
 
 const faixa = (v: FormDataEntryValue | null, min: number, max: number) => {
   const n = Number(v);
@@ -22,9 +24,14 @@ async function salvar(fd: FormData) {
   if (empresa.length < 2 || offlineMinutos === null || heartbeatSeg === null || leituraSeg === null) redirect("/painel/configuracoes?erro=1");
   if (saldoMinimoCentavos === null || saldoMinimoCentavos < 100 || saldoMinimoCentavos > 50000) redirect("/painel/configuracoes?erro=1");
   if (suporteWhatsapp && !/^\d{12,13}$/.test(suporteWhatsapp)) redirect("/painel/configuracoes?erro=1");
+  const razaoSocial = String(fd.get("razao_social") ?? "").trim().replace(/\s+/g, " ").slice(0, 100);
+  const cnpjTexto = String(fd.get("cnpj") ?? "").trim();
+  const cnpj = cnpjTexto ? cnpjValido(cnpjTexto) : "";
+  const suporteEmail = String(fd.get("email_suporte") ?? "").trim().toLowerCase().slice(0, 254);
+  if (cnpj === null || (suporteEmail && !EMAIL.test(suporteEmail))) redirect("/painel/configuracoes?erro=1");
   const taxa = Number(String(fd.get("taxa") ?? "").replace(",", "."));
   if (!Number.isFinite(taxa) || taxa < 0 || taxa > 15) redirect("/painel/configuracoes?erro=1");
-  await saveSettings({ empresa, offlineMinutos, heartbeatSeg, leituraSeg, saldoMinimoCentavos, suporteWhatsapp, taxaPagamentoBp: Math.round(taxa * 100) });
+  await saveSettings({ empresa, offlineMinutos, heartbeatSeg, leituraSeg, saldoMinimoCentavos, suporteWhatsapp, suporteEmail, razaoSocial, cnpj, taxaPagamentoBp: Math.round(taxa * 100) });
   await audit(`usuario:${u.id}`, "configuracoes_salvas", null, null, `offline ${offlineMinutos} min, heartbeat ${heartbeatSeg} s, leitura ${leituraSeg} s`);
   redirect("/painel/configuracoes?ok=1");
 }
@@ -38,8 +45,10 @@ export default async function Configuracoes({ searchParams }: { searchParams: Pr
       <div className="panel-h"><h3>Operação</h3></div>
       <div className="panel-b">
         {sp.ok && <div className="aviso ok">Configurações salvas.</div>}
-        {sp.erro && <div className="aviso erro">Confira os valores (fora da faixa permitida).</div>}
+        {sp.erro && <div className="aviso erro">Confira os valores (fora da faixa permitida, CNPJ ou e-mail inválido).</div>}
         <div className="field"><label htmlFor="empresa">Nome da empresa</label><input className="input" id="empresa" name="empresa" defaultValue={s.empresa} maxLength={40} required /></div>
+        <div className="field"><label htmlFor="razao_social">Razão social (aparece na carteira e nas políticas do app)</label><input className="input" id="razao_social" name="razao_social" defaultValue={s.razaoSocial} maxLength={100} /></div>
+        <div className="field"><label htmlFor="cnpj">CNPJ</label><input className="input mono" id="cnpj" name="cnpj" defaultValue={s.cnpj ? cnpjFormatado(s.cnpj) : ""} maxLength={18} placeholder="00.000.000/0000-00" inputMode="numeric" /></div>
         <div className="field">
           <label htmlFor="offline">Avisar estação offline depois de (minutos)</label>
           <input className="input mono" id="offline" name="offline" type="number" min={1} max={120} defaultValue={s.offlineMinutos} />
@@ -61,6 +70,10 @@ export default async function Configuracoes({ searchParams }: { searchParams: Pr
         <div className="field">
           <label htmlFor="whatsapp">WhatsApp do atendimento (aparece em Ajuda)</label>
           <input className="input mono" id="whatsapp" name="whatsapp" defaultValue={s.suporteWhatsapp} maxLength={16} placeholder="83 99999-0000" />
+        </div>
+        <div className="field">
+          <label htmlFor="email_suporte">E-mail do atendimento (Ajuda e política de reembolso)</label>
+          <input className="input" id="email_suporte" name="email_suporte" type="email" defaultValue={s.suporteEmail} maxLength={254} placeholder="atendimento@vivaenergia.com.br" />
         </div>
         <div className="box-title">Relatórios</div>
         <div className="field">
