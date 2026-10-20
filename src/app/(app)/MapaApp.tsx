@@ -103,6 +103,17 @@ export function MapaApp({ inicial, tiles, atribuicao, meusConectores }: { inicia
       const m = Lf.map(caixa.current, { zoomControl: false, attributionControl: true });
       m.attributionControl.setPrefix(false);
       Lf.tileLayer(tiles, { maxZoom: 19, attribution: atribuicao }).addTo(m);
+      // Crédito do mapa (obrigatório pela licença do OpenStreetMap) recolhido
+      // num "i": aparece ao tocar, como as regras de atribuição permitem no celular.
+      const atrib = m.attributionControl.getContainer();
+      if (atrib) {
+        atrib.classList.add("atrib-fechada");
+        atrib.setAttribute("title", "Créditos do mapa");
+        atrib.addEventListener("click", (ev) => {
+          if (atrib.classList.contains("atrib-fechada")) ev.preventDefault();
+          atrib.classList.toggle("atrib-fechada");
+        });
+      }
       const pts = inicial.filter(comCoord).map((e) => [e.lat, e.lng] as [number, number]);
       if (pts.length) m.fitBounds(Lf.latLngBounds(pts), { padding: [60, 60], maxZoom: 15 });
       else m.setView([-7.115, -34.86], 12);

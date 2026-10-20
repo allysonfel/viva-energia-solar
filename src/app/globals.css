@@ -526,3 +526,9 @@ tbody tr td{transition:background-color .15s}
   .app:not([data-tema="claro"]) .map-wrap .mapa{background:#17211D}
 }
 
+/* Crédito do mapa recolhido num "i" (abre ao tocar). */
+.leaflet-control-attribution{cursor:pointer;border-radius:10px 0 0 0}
+.leaflet-control-attribution.atrib-fechada{font-size:0;width:22px;height:22px;padding:0;margin:0 6px 6px 0;border-radius:50%;display:grid;place-items:center;background:var(--card);color:var(--muted);box-shadow:0 1px 4px rgba(0,0,0,.18)}
+.leaflet-control-attribution.atrib-fechada *{display:none}
+.leaflet-control-attribution.atrib-fechada::before{content:"i";font:700 12px/1 var(--body)}
+
