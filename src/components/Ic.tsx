@@ -34,7 +34,8 @@ const IC: Record<string, string> = {
   check: "<path d=\"m5 12 5 5 9-10\"/>",
   car: "<path d=\"M5 16v-5l2-5h10l2 5v5M3 16h18v3H3zM7 19v1M17 19v1M5 11h14\"/>",
   sliders: "<path d=\"M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12\"/><circle cx=\"16\" cy=\"6\" r=\"2\"/><circle cx=\"10\" cy=\"12\" r=\"2\"/><circle cx=\"18\" cy=\"18\" r=\"2\"/>",
-  stop: "<rect x=\"6\" y=\"6\" width=\"12\" height=\"12\" rx=\"1.5\"/>",
+  // cheio: só com contorno parecia o "caractere inválido" (□)
+  stop: "<rect x=\"7\" y=\"7\" width=\"10\" height=\"10\" rx=\"2\" fill=\"currentColor\"/>",
   right: "<path d=\"m9 5 7 7-7 7\"/>",
   tag: "<path d=\"M3 12V4h8l10 10-8 8L3 12z\"/><circle cx=\"7.5\" cy=\"8.5\" r=\"1.3\"/>",
   alert: "<path d=\"M12 4 2.5 20h19L12 4z\"/><path d=\"M12 10v4M12 17h.01\"/>",
