@@ -9,7 +9,9 @@ import { hashPassword } from "./auth";
 export async function dadosDoMotorista(id: number) {
   const [conta] = await sql`
     SELECT nome, email, cpf, celular, veiculo, placa, conectores, saldo_centavos, aceita_promocoes, avisos_recarga,
-      consentimento_em, criado_em, ultimo_acesso FROM motoristas WHERE id = ${id}`;
+      consentimento_em, criado_em, ultimo_acesso,
+      EXISTS (SELECT 1 FROM motorista_fotos f WHERE f.motorista_id = motoristas.id) AS tem_foto_de_perfil
+    FROM motoristas WHERE id = ${id}`;
   if (!conta) return null;
   const recargas = await sql`
     SELECT r.id, e.nome AS estacao, r.conector_numero, r.inicio, r.fim, r.energia_wh, r.valor_centavos, r.status, r.tarifa_nome, r.desconto_pct
@@ -35,6 +37,7 @@ export async function excluirMotorista(id: number): Promise<"ok" | "saldo" | "re
         ativo = false, sessao_versao = sessao_versao + 1
       WHERE id = ${id}`;
     await tx`DELETE FROM push_inscricoes WHERE dono_tipo = 'motorista' AND dono_id = ${id}`;
+    await tx`DELETE FROM motorista_fotos WHERE motorista_id = ${id}`;
     await tx`DELETE FROM avisos_motorista WHERE motorista_id = ${id}`;
     await tx`DELETE FROM recuperacao_senha WHERE motorista_id = ${id}`;
     await tx`UPDATE pagamentos SET pix_copia_cola = NULL WHERE motorista_id = ${id}`;

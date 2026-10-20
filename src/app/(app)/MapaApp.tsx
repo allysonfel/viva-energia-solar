@@ -181,7 +181,7 @@ export function MapaApp({ inicial, tiles, atribuicao, meusConectores }: { inicia
       </div>
       {!lista.length && (
         <div className="near">
-          <div style={{ margin: "0 14px", background: "#fff", borderRadius: 16, padding: 18, textAlign: "center" }}>
+          <div style={{ margin: "0 14px", background: "var(--card)", borderRadius: 16, padding: 18, textAlign: "center" }}>
             <b>Nenhuma estação com esse filtro</b>
             <div className="muted" style={{ fontSize: 13, marginTop: 4 }}>Tente outro tipo de conector ou limpe a busca.</div>
           </div>

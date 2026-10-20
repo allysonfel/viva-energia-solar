@@ -333,6 +333,14 @@ CREATE TABLE IF NOT EXISTS push_inscricoes (
 );
 CREATE INDEX IF NOT EXISTS push_dono_idx ON push_inscricoes (dono_tipo, dono_id);
 
+-- Foto de perfil do motorista: já reprocessada no servidor (256x256 WebP,
+-- sem metadados como a localização da foto). Uma por motorista.
+CREATE TABLE IF NOT EXISTS motorista_fotos (
+  motorista_id INT PRIMARY KEY REFERENCES motoristas(id) ON DELETE CASCADE,
+  imagem BYTEA NOT NULL CHECK (octet_length(imagem) <= 200000),
+  atualizado_em TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 -- Caixa de avisos do motorista no app (recarga iniciada, concluída, saldo...).
 CREATE TABLE IF NOT EXISTS avisos_motorista (
   id SERIAL PRIMARY KEY,

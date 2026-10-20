@@ -4,14 +4,24 @@ import { cpfMascarado, celularFormatado } from "@/lib/cpf";
 import { iniciais } from "@/lib/format";
 import { SENHA_MINIMA } from "@/lib/auth";
 import { Ic } from "@/components/Ic";
-import { salvarPerfil, trocarSenhaApp, sairApp, excluirConta } from "../acoes";
+import { salvarDados, salvarVeiculo, salvarTema, trocarSenhaApp, sairApp, excluirConta } from "../acoes";
+import { FotoPerfil } from "./FotoPerfil";
+import { temaDoMotorista } from "@/lib/tema";
 import { inscreverPushApp } from "@/app/acoes-push";
 import { vapidPublica } from "@/lib/push";
 import { AtivarAvisos } from "@/components/AtivarAvisos";
 import { BotaoSair } from "@/components/BotaoSair";
 
 const MSG: Record<string, [string, string]> = {
-  "ok:1": ["ok", "Perfil salvo."],
+  "ok:1": ["ok", "Veículo e preferências salvos."],
+  "ok:dados": ["ok", "Dados atualizados."],
+  "ok:foto": ["ok", "Foto removida."],
+  "ok:tema": ["ok", "Aparência atualizada."],
+  "erro:nome": ["erro", "Informe nome e sobrenome."],
+  "erro:email": ["erro", "E-mail inválido."],
+  "erro:email-uso": ["erro", "Esse e-mail já está em outra conta."],
+  "erro:senha-email": ["erro", "Para trocar o e-mail, confirme com a sua senha atual."],
+  "erro:bloqueado": ["erro", "Muitas tentativas com a senha errada. Espere 15 minutos."],
   "ok:senha": ["ok", "Senha trocada. Outras sessões foram encerradas."],
   "erro:celular": ["erro", "Celular inválido."],
   "erro:atual": ["erro", "Senha atual incorreta."],
@@ -25,11 +35,12 @@ export default async function Perfil({ searchParams }: { searchParams: Promise<{
   const m = await requireMotorista();
   const q = await searchParams;
   const msg = q.ok ? MSG[`ok:${q.ok}`] : q.erro ? MSG[`erro:${q.erro}`] : null;
+  const tema = await temaDoMotorista();
   return (
     <div className="sec-pad">
       {msg && <div className={`aviso ${msg[0]}`}>{msg[1]}</div>}
       <div className="profile-head">
-        <div className="avatar">{iniciais(m.nome)}</div>
+        <FotoPerfil iniciais={iniciais(m.nome)} fotoEm={m.foto_em ? new Date(m.foto_em).toISOString() : null} />
         <div>
           <b style={{ fontSize: 17 }}>{m.nome}</b>
           <div className="muted" style={{ fontSize: 13 }}>{m.email} · {celularFormatado(m.celular)}</div>
@@ -37,13 +48,23 @@ export default async function Perfil({ searchParams }: { searchParams: Promise<{
         </div>
       </div>
 
-      <form action={salvarPerfil} className="box">
-        <div className="box-title">Meu veículo e contato</div>
+      <form action={salvarDados} className="box">
+        <div className="box-title">Meus dados</div>
+        <div className="field"><label htmlFor="nome">Nome completo</label><input className="input" id="nome" name="nome" defaultValue={m.nome} maxLength={80} required autoComplete="name" /></div>
+        <div className="field"><label htmlFor="email">E-mail (usado para entrar)</label><input className="input" id="email" name="email" type="email" defaultValue={m.email} maxLength={160} required autoComplete="email" /></div>
+        <div className="field"><label htmlFor="celular">Celular</label><input className="input" id="celular" name="celular" defaultValue={celularFormatado(m.celular)} maxLength={16} inputMode="tel" required autoComplete="tel" /></div>
+        <details className="senha-email">
+          <summary className="muted">Vai trocar o e-mail? Confirme com a senha</summary>
+          <div className="field" style={{ marginTop: 8 }}><label htmlFor="senha-dados">Senha atual</label><input className="input" id="senha-dados" name="senha" type="password" maxLength={200} autoComplete="current-password" /></div>
+        </details>
+        <div className="muted" style={{ fontSize: 12, margin: "4px 0 10px" }}>O CPF não pode ser alterado pelo app. Se estiver errado, fale com o atendimento.</div>
+        <button className="btn btn-dark btn-block">Salvar dados</button>
+      </form>
+
+      <form action={salvarVeiculo} className="box">
+        <div className="box-title">Meu veículo</div>
         <div className="field"><label htmlFor="veiculo">Veículo</label><input className="input" id="veiculo" name="veiculo" defaultValue={m.veiculo} maxLength={60} /></div>
-        <div className="two">
-          <div className="field"><label htmlFor="placa">Placa</label><input className="input mono" id="placa" name="placa" defaultValue={m.placa} maxLength={8} /></div>
-          <div className="field"><label htmlFor="celular">Celular</label><input className="input" id="celular" name="celular" defaultValue={celularFormatado(m.celular)} maxLength={16} inputMode="tel" /></div>
-        </div>
+        <div className="field"><label htmlFor="placa">Placa</label><input className="input mono" id="placa" name="placa" defaultValue={m.placa} maxLength={8} /></div>
         <div className="field">
           <label>Conectores do carro</label>
           <div className="chips" style={{ flexWrap: "wrap" }}>
@@ -61,6 +82,16 @@ export default async function Perfil({ searchParams }: { searchParams: Promise<{
           <input type="checkbox" name="promocoes" value="1" defaultChecked={m.aceita_promocoes} />
         </label>
         <button className="btn btn-dark btn-block" style={{ marginTop: 10 }}>Salvar</button>
+      </form>
+
+      <form action={salvarTema} className="box">
+        <div className="box-title">Aparência</div>
+        <div className="tema-opcoes">
+          {([["auto", "Automático", "phone"], ["claro", "Claro", "sun"], ["escuro", "Escuro", "moon"]] as const).map(([v, rotulo, ic]) => (
+            <button key={v} name="tema" value={v} className={tema === v ? "on" : ""} aria-pressed={tema === v}><Ic n={ic} />{rotulo}</button>
+          ))}
+        </div>
+        <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>No automático, o app fica escuro quando o celular estiver no modo escuro.</div>
       </form>
 
       <div className="box" style={{ padding: "4px 16px" }}>

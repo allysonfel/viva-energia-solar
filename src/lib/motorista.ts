@@ -22,6 +22,8 @@ export type Motorista = {
   saldo_centavos: number;
   avisos_recarga: boolean;
   aceita_promocoes: boolean;
+  // Quando a foto de perfil mudou (null = sem foto); serve de versão na URL.
+  foto_em: Date | null;
 };
 
 export async function iniciarSessaoMotorista(id: number, versao: number) {
@@ -43,7 +45,8 @@ export async function getMotorista(): Promise<Motorista | null> {
   if (!d || d.t !== "motorista") return null;
   await ensureSchema();
   const [m] = await sql<Motorista[]>`
-    SELECT id, nome, email, cpf, celular, veiculo, placa, conectores, id_tag, saldo_centavos, avisos_recarga, aceita_promocoes
+    SELECT id, nome, email, cpf, celular, veiculo, placa, conectores, id_tag, saldo_centavos, avisos_recarga, aceita_promocoes,
+      (SELECT f.atualizado_em FROM motorista_fotos f WHERE f.motorista_id = motoristas.id) AS foto_em
     FROM motoristas WHERE id = ${d.mid} AND ativo AND sessao_versao = ${d.v}`;
   return m ?? null;
 }

@@ -17,7 +17,7 @@ const TITULO: [RegExp, string][] = [
 
 // Moldura do app: cabeçalho (exceto mapa, estação e recarga ao vivo) e abas.
 // O botão do meio vira "Recarga" quando há uma em andamento.
-export function AppShell({ children, nome, recargaInicial, naoLidosInicial }: { children: React.ReactNode; nome: string; recargaInicial: number | null; naoLidosInicial: number }) {
+export function AppShell({ children, nome, recargaInicial, naoLidosInicial, tema }: { children: React.ReactNode; nome: string; recargaInicial: number | null; naoLidosInicial: number; tema: "auto" | "claro" | "escuro" }) {
   const path = usePathname();
   const [recarga, setRecarga] = useState(recargaInicial);
   const [naoLidos, setNaoLidos] = useState(naoLidosInicial);
@@ -52,7 +52,7 @@ export function AppShell({ children, nome, recargaInicial, naoLidosInicial }: { 
 
   return (
     <div className="app-stage">
-      <div className="app">
+      <div className="app" data-tema={tema === "auto" ? undefined : tema}>
         {titulo && (
           <div className="app-head">
             <div>

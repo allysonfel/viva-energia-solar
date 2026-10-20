@@ -3,6 +3,9 @@
 // Ações do app do motorista. Tudo conferido aqui: sessão, dono da recarga ou
 // do pagamento, saldo, estado da estação e do conector, valores.
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
+import sharp from "sharp";
+import { COOKIE_TEMA } from "@/lib/tema";
 import { revalidatePath } from "next/cache";
 import { sql } from "@/lib/db";
 import { requireMotorista, iniciarSessaoMotorista, encerrarSessaoMotorista, getMotorista } from "@/lib/motorista";
@@ -155,19 +158,96 @@ export async function resgatarVoucher(_: Resposta, fd: FormData): Promise<Respos
 
 // ---------------------------------------------------------------- perfil
 
-export async function salvarPerfil(fd: FormData) {
+// Nome, e-mail e celular. Trocar o e-mail (que é o login) pede a senha atual,
+// com o mesmo freio de tentativas do login (5 erros em 15 min).
+export async function salvarDados(fd: FormData) {
   const m = await requireMotorista();
+  const nome = String(fd.get("nome") ?? "").trim().replace(/\s+/g, " ").slice(0, 80);
+  const email = String(fd.get("email") ?? "").trim().toLowerCase().slice(0, 160);
   const celular = celularValido(fd.get("celular"));
+  if (nome.length < 2 || !nome.includes(" ")) redirect("/perfil?erro=nome");
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) redirect("/perfil?erro=email");
   if (!celular) redirect("/perfil?erro=celular");
+  const trocouEmail = email !== m.email;
+  if (trocouEmail) {
+    const chave = `perfil-senha:${m.id}`;
+    if (await isBlocked([[chave, 5]])) redirect("/perfil?erro=bloqueado");
+    const [r] = await sql<{ senha_hash: string }[]>`SELECT senha_hash FROM motoristas WHERE id = ${m.id}`;
+    if (!r || !verifyPassword(String(fd.get("senha") ?? "").slice(0, 200), r.senha_hash)) {
+      await registerFailure(chave);
+      redirect("/perfil?erro=senha-email");
+    }
+    const [existe] = await sql`SELECT 1 FROM motoristas WHERE email = ${email} AND id <> ${m.id}`;
+    if (existe) redirect("/perfil?erro=email-uso");
+  }
+  await sql`UPDATE motoristas SET nome = ${nome}, email = ${email}, celular = ${celular} WHERE id = ${m.id}`;
+  await audit(`motorista:${m.id}`, trocouEmail ? "email_trocado" : "dados_salvos", "motorista", m.id);
+  redirect("/perfil?ok=dados");
+}
+
+export async function salvarVeiculo(fd: FormData) {
+  const m = await requireMotorista();
   const veiculo = String(fd.get("veiculo") ?? "").trim().slice(0, 60);
   const placa = String(fd.get("placa") ?? "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 7);
   const conectores = fd.getAll("conectores").map(String).filter((c) => TIPOS_CONECTOR.includes(c)).slice(0, 6);
   await sql`
-    UPDATE motoristas SET celular = ${celular}, veiculo = ${veiculo}, placa = ${placa}, conectores = ${conectores},
+    UPDATE motoristas SET veiculo = ${veiculo}, placa = ${placa}, conectores = ${conectores},
       avisos_recarga = ${fd.get("avisos") === "1"}, aceita_promocoes = ${fd.get("promocoes") === "1"}
     WHERE id = ${m.id}`;
   await audit(`motorista:${m.id}`, "perfil_salvo", "motorista", m.id);
   redirect("/perfil?ok=1");
+}
+
+export async function salvarTema(fd: FormData) {
+  await requireMotorista();
+  const tema = String(fd.get("tema") ?? "");
+  const c = await cookies();
+  if (tema === "claro" || tema === "escuro") c.set(COOKIE_TEMA, tema, { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/", maxAge: 400 * 24 * 3600 });
+  else c.delete(COOKIE_TEMA);
+  redirect("/perfil?ok=tema");
+}
+
+// Foto de perfil. O navegador já reduz a foto; aqui ela é conferida (tipo pelos
+// primeiros bytes, tamanho) e refeita pelo Sharp em 256x256 WebP, o que tira
+// metadados como a localização. Freio: 10 envios por 15 min.
+const FOTO_MAX = 2_000_000;
+
+function tipoImagem(b: Buffer): boolean {
+  const jpeg = b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff;
+  const png = b.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+  const webp = b.subarray(0, 4).toString("latin1") === "RIFF" && b.subarray(8, 12).toString("latin1") === "WEBP";
+  return jpeg || png || webp;
+}
+
+export async function enviarFoto(_: Resposta, fd: FormData): Promise<Resposta> {
+  const m = await requireMotorista();
+  const chave = `foto:${m.id}`;
+  if (await isBlocked([[chave, 10]])) return { ok: false, texto: "Muitas trocas de foto seguidas. Tente daqui a alguns minutos." };
+  const arq = fd.get("foto");
+  if (!(arq instanceof File) || arq.size === 0) return { ok: false, texto: "Escolha uma foto." };
+  if (arq.size > FOTO_MAX) return { ok: false, texto: "Foto grande demais." };
+  const bruto = Buffer.from(await arq.arrayBuffer());
+  if (!tipoImagem(bruto)) return { ok: false, texto: "Use uma foto JPG, PNG ou WebP." };
+  let imagem: Buffer;
+  try {
+    imagem = await sharp(bruto, { limitInputPixels: 40_000_000 }).rotate().resize(256, 256, { fit: "cover" }).webp({ quality: 80 }).toBuffer();
+  } catch {
+    return { ok: false, texto: "Não conseguimos ler essa foto. Tente outra." };
+  }
+  await registerFailure(chave); // conta o envio no freio (não é falha de senha)
+  await sql`
+    INSERT INTO motorista_fotos (motorista_id, imagem) VALUES (${m.id}, ${imagem})
+    ON CONFLICT (motorista_id) DO UPDATE SET imagem = EXCLUDED.imagem, atualizado_em = now()`;
+  await audit(`motorista:${m.id}`, "foto_trocada", "motorista", m.id);
+  revalidatePath("/perfil");
+  return { ok: true, texto: "Foto atualizada." };
+}
+
+export async function removerFoto() {
+  const m = await requireMotorista();
+  await sql`DELETE FROM motorista_fotos WHERE motorista_id = ${m.id}`;
+  await audit(`motorista:${m.id}`, "foto_removida", "motorista", m.id);
+  redirect("/perfil?ok=foto");
 }
 
 export async function trocarSenhaApp(fd: FormData) {

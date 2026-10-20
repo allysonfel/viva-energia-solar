@@ -16,6 +16,8 @@ export default async function Ajuda() {
     ["Cheguei e a estação está ocupada", "O mapa mostra no topo as 2 estações livres mais perto de você (com a localização liberada) ou da região que está na tela. Na tela de cada estação também aparecem as livres mais próximas dela."],
     ["A recarga parou sozinha", "Isso acontece quando a bateria chega ao limite do carro, quando o cabo é desconectado ou quando o saldo acaba. O valor cobrado é só da energia entregue."],
     ["Posso pedir o saldo de volta?", "Sim, sem taxa. Peça pelo atendimento: devolvemos por Pix para uma chave no CPF do titular, em até 7 dias úteis. Crédito dos últimos 7 dias ainda não usado volta por inteiro. Detalhes na Política de reembolso, abaixo."],
+    ["Como mudo meus dados ou a foto?", "Em Perfil: toque na foto para trocar e use Meus dados para nome, e-mail e celular. Para trocar o e-mail, confirme com a sua senha. O CPF só muda pelo atendimento."],
+    ["O app tem modo escuro?", "Tem. Em Perfil > Aparência, escolha Claro, Escuro ou Automático (segue o modo do celular)."],
     ["Uma recarga foi cobrada errado", "Avise o atendimento em até 30 dias com o número da recarga (está no recibo). Confirmado o erro, a diferença volta para a carteira em até 5 dias úteis."],
   ];
   return (
