@@ -3,10 +3,10 @@
 import "leaflet/dist/leaflet.css";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import type * as L from "leaflet";
-import { Badge } from "@/components/Badge";
 import { Ic } from "@/components/Ic";
-import { brl, kw } from "@/lib/format";
+import { kw } from "@/lib/format";
 import type { EstacaoApp } from "@/lib/app";
 
 type Filtro = "todos" | "livres" | "rapido" | string;
@@ -26,13 +26,12 @@ export function MapaApp({ inicial, tiles, atribuicao, meusConectores }: { inicia
   const [estacoes, setEstacoes] = useState(inicial);
   const [filtro, setFiltro] = useState<Filtro>("todos");
   const [busca, setBusca] = useState("");
-  const [sel, setSel] = useState<string | null>(null);
+  const router = useRouter();
   const [eu, setEu] = useState<{ lat: number; lng: number } | null>(null);
   const caixa = useRef<HTMLDivElement>(null);
   const mapa = useRef<L.Map | null>(null);
   const camada = useRef<L.LayerGroup | null>(null);
   const lib = useRef<typeof L | null>(null);
-  const linha = useRef<HTMLDivElement>(null);
 
   // Lista ao vivo a cada 15 s.
   useEffect(() => {
@@ -132,17 +131,14 @@ export function MapaApp({ inicial, tiles, atribuicao, meusConectores }: { inicia
       const icone = Lf.divIcon({
         className: "pin-icone",
         iconSize: [0, 0],
-        html: `<div class="pin ${e.situacao}${sel === e.codigo ? " sel" : ""}"><span class="bubble">${BOLT}${kw(maxKw)} kW</span><span class="stem"></span></div>`,
+        html: `<div class="pin ${e.situacao}"><span class="bubble">${BOLT}${kw(maxKw)} kW</span><span class="stem"></span></div>`,
       });
       Lf.marker([e.lat, e.lng], { icon: icone, title: e.nome, keyboard: true })
-        .on("click", () => {
-          setSel(e.codigo);
-          document.getElementById(`card-${e.codigo}`)?.scrollIntoView({ behavior: "smooth", inline: "start", block: "nearest" });
-        })
+        .on("click", () => router.push(`/estacao/${encodeURIComponent(e.codigo)}`))
         .addTo(g);
     }
     if (eu) Lf.marker([eu.lat, eu.lng], { icon: Lf.divIcon({ className: "pin-icone", iconSize: [0, 0], html: '<div class="me"></div>' }), interactive: false }).addTo(g);
-  }, [lista, sel, eu]);
+  }, [lista, eu, router]);
 
   const chips: [Filtro, string][] = [
     ["todos", "Todas"],
@@ -172,7 +168,7 @@ export function MapaApp({ inicial, tiles, atribuicao, meusConectores }: { inicia
             </div>
             {proximas.map((e) => (
               <Link key={e.codigo} className="proximas-item" href={`/estacao/${encodeURIComponent(e.codigo)}`}>
-                <span className="li-ic"><Ic n="bolt" /><i className="dot st-disponivel" /></span>
+                <span className="li-ic"><Ic n="bolt" /></span>
                 <span className="li-main">
                   <b>{e.nome}</b>
                   <small><i className="dot st-disponivel" />Disponível</small>
@@ -183,28 +179,14 @@ export function MapaApp({ inicial, tiles, atribuicao, meusConectores }: { inicia
           </div>
         )}
       </div>
-      <div className="near">
-        {lista.length ? (
-          <div className="near-row" ref={linha}>
-            {lista.map((e) => (
-              <Link key={e.codigo} id={`card-${e.codigo}`} className="near-card" href={`/estacao/${encodeURIComponent(e.codigo)}`}
-                style={sel === e.codigo ? { outline: "2px solid var(--g600)" } : undefined}>
-                <div className="between"><div className="t">{e.nome}</div><Badge s={e.situacao} /></div>
-                <div className="m">{[e.km !== null ? distTxt(e.km) : null, e.bairro].filter(Boolean).join(" · ")}</div>
-                <div className="r">
-                  <span className="badge b-neutral mono">{brl(e.preco_agora)}/kWh</span>
-                  {e.conectores.map((c) => <span key={c.numero} className="badge b-neutral">{c.tipo} {kw(c.potencia_w)} kW</span>)}
-                </div>
-              </Link>
-            ))}
-          </div>
-        ) : (
+      {!lista.length && (
+        <div className="near">
           <div style={{ margin: "0 14px", background: "#fff", borderRadius: 16, padding: 18, textAlign: "center" }}>
             <b>Nenhuma estação com esse filtro</b>
             <div className="muted" style={{ fontSize: 13, marginTop: 4 }}>Tente outro tipo de conector ou limpe a busca.</div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
