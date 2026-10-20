@@ -73,7 +73,9 @@ export function MapaApp({ inicial, tiles, atribuicao, meusConectores }: { inicia
 
   // Cartão "Estação mais próxima" (pedido do cliente, igual ao app de referência):
   // as 2 com conector livre mais perto de onde o motorista está, sem filtro nem
-  // busca. Sem localização não aparece; fechado, some até fechar o app.
+  // busca. Sem localização, as mais perto do centro do mapa (sem distância);
+  // fechado, some até fechar o app.
+  const [centro, setCentro] = useState<{ lat: number; lng: number } | null>(null);
   const [fechouProximas, setFechouProximas] = useState(false);
   useEffect(() => {
     try { if (sessionStorage.getItem("viva_proximas_fechado")) setFechouProximas(true); } catch {}
@@ -83,14 +85,15 @@ export function MapaApp({ inicial, tiles, atribuicao, meusConectores }: { inicia
     try { sessionStorage.setItem("viva_proximas_fechado", "1"); } catch {}
   };
   const proximas = useMemo(() => {
-    if (!eu) return [];
+    const de = eu ?? centro;
+    if (!de) return [];
     return estacoes
       .filter(comCoord)
       .filter((e) => e.conectores.some((c) => c.situacao === "disponivel"))
-      .map((e) => ({ ...e, km: distKm(eu, e) }))
+      .map((e) => ({ ...e, km: distKm(de, e) }))
       .sort((a, b) => a.km - b.km)
       .slice(0, 2);
-  }, [estacoes, eu]);
+  }, [estacoes, eu, centro]);
 
   // Cria o mapa uma vez.
   useEffect(() => {
@@ -106,6 +109,9 @@ export function MapaApp({ inicial, tiles, atribuicao, meusConectores }: { inicia
       else m.setView([-7.115, -34.86], 12);
       camada.current = Lf.layerGroup().addTo(m);
       mapa.current = m;
+      const c = () => { const x = m.getCenter(); setCentro({ lat: x.lat, lng: x.lng }); };
+      c();
+      m.on("moveend", c);
       setEstacoes((x) => [...x]); // desenha os pinos
     });
     return () => {
@@ -171,7 +177,7 @@ export function MapaApp({ inicial, tiles, atribuicao, meusConectores }: { inicia
                   <b>{e.nome}</b>
                   <small><i className="dot st-disponivel" />Disponível</small>
                 </span>
-                <span className="proximas-km mono">{distTxt(e.km)}</span>
+                <span className={`proximas-km ${eu ? "mono" : ""}`}>{eu ? distTxt(e.km) : e.bairro}</span>
               </Link>
             ))}
           </div>
