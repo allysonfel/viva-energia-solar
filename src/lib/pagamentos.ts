@@ -1,14 +1,14 @@
 // Camada única de pagamentos (crédito na carteira por Pix ou cartão). O
-// provedor é escolhido por PAGAMENTOS_PROVEDOR; enquanto o gateway da Viva
-// não é escolhido, só existe o "simulado" (nada sai do sistema, o Pix não é
-// de verdade e o cartão nunca tem o número enviado ao servidor).
-//
-// Provedor real (Asaas, Mercado Pago, AbacatePay...) entra aqui com a mesma
-// interface: criarPix, cobrarCartao e a confirmação pelo webhook com
-// assinatura, chamando confirmarPagamento (lib/carteira).
+// provedor é escolhido por PAGAMENTOS_PROVEDOR:
+// - "simulado": nada sai do sistema, o Pix não é de verdade e o cartão nunca
+//   tem o número enviado ao servidor;
+// - "syncpay": Pix de verdade (lib/syncpay), confirmado pelo webhook
+//   /api/webhooks/syncpay, que chama confirmarPagamento (lib/carteira).
+//   Cartão fica de fora (a SyncPay retém parte das vendas no cartão).
 import "server-only";
 import { randomBytes } from "crypto";
 import QRCode from "qrcode";
+import { criarCobrancaPix, type ClientePix } from "./syncpay";
 
 export type Pix = { provedorId: string; copiaECola: string; expiraEm: Date };
 export type ResultadoCartao = { provedorId: string; aprovado: boolean; motivo?: string };
@@ -16,7 +16,8 @@ export type ResultadoCartao = { provedorId: string; aprovado: boolean; motivo?: 
 export type Provedor = {
   nome: string;
   simulado: boolean;
-  criarPix(valorCentavos: number, ref: string): Promise<Pix>;
+  cartao: boolean;
+  criarPix(valorCentavos: number, ref: string, cliente: ClientePix): Promise<Pix>;
   // token = o que o formulário do gateway devolve (no simulado: final do cartão).
   cobrarCartao(valorCentavos: number, token: { final: string; bandeira: string }, ref: string): Promise<ResultadoCartao>;
 };
@@ -41,6 +42,7 @@ function brCode(valorCentavos: number, txid: string) {
 const simulado: Provedor = {
   nome: "simulado",
   simulado: true,
+  cartao: true,
   async criarPix(valor) {
     const id = "SIM" + randomBytes(10).toString("hex").toUpperCase();
     return { provedorId: id, copiaECola: brCode(valor, id.slice(0, 25)), expiraEm: new Date(Date.now() + 30 * 60_000) };
@@ -49,6 +51,20 @@ const simulado: Provedor = {
     // Cartão terminado em 0000 simula recusa (para testar a tela de erro).
     const id = "SIMC" + randomBytes(10).toString("hex").toUpperCase();
     return token.final === "0000" ? { provedorId: id, aprovado: false, motivo: "Cartão recusado pelo emissor (teste)" } : { provedorId: id, aprovado: true };
+  },
+};
+
+const syncpay: Provedor = {
+  nome: "syncpay",
+  simulado: false,
+  cartao: false,
+  async criarPix(valor, ref, cliente) {
+    const c = await criarCobrancaPix(valor, `Crédito Viva Energia (${ref})`, cliente);
+    // A tela mostra 30 min; se o banco confirmar depois, o crédito entra igual.
+    return { provedorId: c.identificador, copiaECola: c.copiaECola, expiraEm: new Date(Date.now() + 30 * 60_000) };
+  },
+  async cobrarCartao() {
+    return { provedorId: "", aprovado: false, motivo: "Pagamento com cartão indisponível. Use o Pix." };
   },
 };
 
@@ -62,7 +78,8 @@ export function pagamentosLiberados(): boolean {
 
 export function provedorPagamentos(): Provedor {
   const nome = process.env.PAGAMENTOS_PROVEDOR?.trim() || "simulado";
-  if (nome !== "simulado") console.warn(`[pagamentos] provedor "${nome}" ainda não implementado; usando o simulado`);
+  if (nome === "syncpay") return syncpay;
+  if (nome !== "simulado") console.warn(`[pagamentos] provedor "${nome}" desconhecido; usando o simulado`);
   return simulado;
 }
 

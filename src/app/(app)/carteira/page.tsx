@@ -40,7 +40,7 @@ export default async function Carteira({ searchParams }: { searchParams: Promise
           Pix de {brl(p.valor_centavos)} aguardando pagamento. Toque para ver o código.
         </Link>
       ))}
-      <Credito simulado={provedorPagamentos().simulado} />
+      <Credito simulado={provedorPagamentos().simulado} cartao={provedorPagamentos().cartao} />
       <MeusVouchers lista={vouchers.map((v) => ({
         codigo: v.codigo, pct: v.pct, descricao: v.descricao, onde: v.estacao ? `só na ${v.estacao}` : "",
         validade: v.valido_ate ? `até ${new Date(v.valido_ate).toLocaleDateString("pt-BR", { timeZone: "UTC" })}` : "", usado: v.usado,

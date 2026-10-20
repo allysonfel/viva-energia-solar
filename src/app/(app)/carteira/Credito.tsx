@@ -30,7 +30,7 @@ function luhn(n: string) {
   return n.length >= 13 && s % 10 === 0;
 }
 
-export function Credito({ simulado }: { simulado: boolean }) {
+export function Credito({ simulado, cartao: aceitaCartao }: { simulado: boolean; cartao: boolean }) {
   const [valor, setValor] = useState(5000);
   const [metodo, setMetodo] = useState<"pix" | "cartao">("pix");
   const [rPix, enviarPix, gerando] = useActionState<Resposta, FormData>(criarPix, null);
@@ -67,11 +67,11 @@ export function Credito({ simulado }: { simulado: boolean }) {
           <button key={v} type="button" className={valor === v ? "on" : ""} onClick={() => setValor(v)}>{v / 100}</button>
         ))}
       </div>
-      <div className="paym">
+      {aceitaCartao && <div className="paym">
         <button type="button" className={metodo === "pix" ? "on" : ""} onClick={() => setMetodo("pix")}><Ic n="pix" />Pix</button>
         <button type="button" className={metodo === "cartao" ? "on" : ""} onClick={() => setMetodo("cartao")}><Ic n="card" />Cartão</button>
-      </div>
-      {metodo === "pix" ? (
+      </div>}
+      {metodo === "pix" || !aceitaCartao ? (
         <form action={enviarPix}>
           <input type="hidden" name="valor" value={valor} />
           {rPix && !rPix.ok && <div className="aviso erro">{rPix.texto}</div>}

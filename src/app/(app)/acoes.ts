@@ -83,7 +83,13 @@ export async function criarPix(_: Resposta, fd: FormData): Promise<Resposta> {
   const [{ n }] = await sql<{ n: number }[]>`SELECT count(*)::int AS n FROM pagamentos WHERE motorista_id = ${m.id} AND status = 'pendente' AND expira_em > now()`;
   if (n >= 5) return { ok: false, texto: "Você já tem Pix aguardando pagamento. Use um deles ou espere expirar." };
   const prov = provedorPagamentos();
-  const pix = await prov.criarPix(valor, `motorista-${m.id}`);
+  let pix;
+  try {
+    pix = await prov.criarPix(valor, `motorista-${m.id}`, { nome: m.nome, cpf: m.cpf, email: m.email, celular: m.celular });
+  } catch (e) {
+    console.error("[pagamentos] falha ao gerar Pix:", e instanceof Error ? e.message : e);
+    return { ok: false, texto: "Não conseguimos gerar o Pix agora. Tente de novo em instantes." };
+  }
   const [p] = await sql<{ id: number }[]>`
     INSERT INTO pagamentos (motorista_id, metodo, valor_centavos, provedor, provedor_id, pix_copia_cola, expira_em)
     VALUES (${m.id}, 'pix', ${valor}, ${prov.nome}, ${pix.provedorId}, ${pix.copiaECola}, ${pix.expiraEm}) RETURNING id`;
@@ -112,6 +118,7 @@ export async function pagarCartao(_: Resposta, fd: FormData): Promise<Resposta> 
   if (!/^\d{4}$/.test(final)) return { ok: false, texto: "Confira os dados do cartão." };
   if (!pagamentosLiberados()) return { ok: false, texto: "Pagamentos ainda não estão disponíveis. Tente mais tarde." };
   const prov = provedorPagamentos();
+  if (!prov.cartao) return { ok: false, texto: "Pagamento com cartão indisponível. Use o Pix." };
   const r = await prov.cobrarCartao(valor, { final, bandeira }, `motorista-${m.id}`);
   const [p] = await sql<{ id: number }[]>`
     INSERT INTO pagamentos (motorista_id, metodo, valor_centavos, provedor, provedor_id, cartao_final, cartao_bandeira, status)
