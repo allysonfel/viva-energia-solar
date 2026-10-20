@@ -434,3 +434,35 @@ textarea.input{height:auto;min-height:80px;padding:10px 14px;resize:vertical}
 .barra-recarga{height:10px;border-radius:99px;background:#E6EEF9;overflow:hidden}
 .barra-recarga i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,#2F6FE0,#0B3B8C);transition:width .5s}
 .app:has(.map-wrap) .fab-recarga{bottom:300px}
+
+/* ================= ANIMAÇÕES: só no toque, curtas e sutis ================= */
+:root{--ease-suave:cubic-bezier(.25,.1,.25,1)}
+/* toque que afunda leve (botões e abas .97, cartões .99), sem mola */
+.btn,.chip,.icon-btn,.seg button,.amounts button,.paym button,.cmd,.tabbar a,.tabbar button,
+.side nav :is(button,a),.mob-nav :is(button,a){transition:transform .15s var(--ease-suave),background-color .2s var(--ease-suave),border-color .2s var(--ease-suave),color .2s var(--ease-suave),box-shadow .2s var(--ease-suave)}
+.btn:active,.chip:active,.icon-btn:active,.seg button:active,.amounts button:active,.paym button:active,.cmd:active,
+.side nav :is(button,a):active,.mob-nav :is(button,a):active{transform:scale(.97)}
+.st-card,.near-card,.conn,.voucher,.kpi{transition:transform .15s var(--ease-suave),border-color .2s var(--ease-suave),box-shadow .2s var(--ease-suave)}
+.st-card:active,.near-card:active,.conn:not(.dis):active{transform:scale(.99)}
+/* hover discreto */
+.btn-dark:hover,.btn-volt:hover{box-shadow:0 4px 12px rgba(6,42,30,.14)}
+.st-card:hover{box-shadow:0 6px 18px rgba(6,42,30,.07)}
+.cmd:hover{box-shadow:0 4px 12px rgba(6,42,30,.06)}
+tbody tr td{transition:background-color .15s}
+/* aba ativa da barra do app: ícone assenta de leve */
+@keyframes icone{from{transform:scale(.92)}}
+.tabbar a.on svg,.tabbar button.on svg{animation:icone .2s var(--ease-suave)}
+.tabbar .scan:active span.ring{transform:scale(.96)}
+.tabbar .scan span.ring{transition:transform .15s var(--ease-suave)}
+/* pino escolhido no mapa cresce suave (antes pulava) */
+.pin .bubble{transition:transform .2s var(--ease-suave),background-color .2s,color .2s}
+/* sino e listas abertas por clique aparecem de leve */
+.notif-pop{animation:fade .15s var(--ease-suave)}
+.faq p{animation:fade .2s var(--ease-suave)}
+.faq summary svg{transition:transform .2s var(--ease-suave)}
+.faq[open] summary svg{transform:rotate(90deg)}
+.barra-recarga i,.bar-mini i{transition:width .5s var(--ease-suave)}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+}
+@media print{*{animation:none!important;transition:none!important}}
