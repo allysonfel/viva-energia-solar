@@ -5,23 +5,7 @@
 import { sql } from "./db";
 import { getSettings } from "./settings";
 
-export const PERIODOS = { mes: "Este mês", mes_anterior: "Mês passado", "7d": "Últimos 7 dias", "30d": "Últimos 30 dias", ano: "Este ano" } as const;
-export type Periodo = keyof typeof PERIODOS;
-
-export const lerPeriodo = (v: unknown): Periodo => (typeof v === "string" && v in PERIODOS ? (v as Periodo) : "mes");
-
-// Intervalo [ini, fim) no horário de Brasília.
-function intervalo(p: Periodo): { ini: Date; fim: Date } {
-  const agora = new Date();
-  const br = new Date(agora.getTime() - 3 * 3_600_000);
-  const y = br.getUTCFullYear(), m = br.getUTCMonth();
-  const meiaNoite = (ano: number, mes: number, dia: number) => new Date(Date.UTC(ano, mes, dia, 3));
-  if (p === "mes") return { ini: meiaNoite(y, m, 1), fim: agora };
-  if (p === "mes_anterior") return { ini: meiaNoite(y, m - 1, 1), fim: meiaNoite(y, m, 1) };
-  if (p === "ano") return { ini: meiaNoite(y, 0, 1), fim: agora };
-  const dias = p === "7d" ? 7 : 30;
-  return { ini: new Date(agora.getTime() - dias * 86_400_000), fim: agora };
-}
+import type { Intervalo } from "./periodo";
 
 export type LinhaEstacao = {
   id: number; nome: string; parceiro: string | null; repasse_pct: number;
@@ -30,8 +14,8 @@ export type LinhaEstacao = {
 };
 
 // soReais: deixa de fora as estações simuladas (dados de demonstração).
-export async function gerarRelatorio(p: Periodo, opcoes: { estacao?: number | null; parceiro?: number | null; soReais?: boolean }) {
-  const { ini, fim } = intervalo(p);
+export async function gerarRelatorio(periodo: Pick<Intervalo, "ini" | "fim">, opcoes: { estacao?: number | null; parceiro?: number | null; soReais?: boolean }) {
+  const { ini, fim } = periodo;
   const s = await getSettings();
   const filtro = sql`
     ${opcoes.estacao ? sql`AND e.id = ${opcoes.estacao}` : sql``}
@@ -71,12 +55,12 @@ export async function gerarRelatorio(p: Periodo, opcoes: { estacao?: number | nu
       return acc;
     }, {}),
   );
-  // Série para o gráfico: por dia (ou por mês no ano).
+  // Série para o gráfico: por hora (um dia), por dia (até 2 meses) ou por mês.
   // Unidade e formato como texto fixo do código (não parâmetro): o GROUP BY
   // precisa ser a mesma expressão do SELECT.
-  const porMes = p === "ano";
-  const unidade = porMes ? sql`'month'` : sql`'day'`;
-  const formato = porMes ? sql`'MM/YYYY'` : sql`'DD/MM'`;
+  const dias = (fim.getTime() - ini.getTime()) / 86_400_000;
+  const unidade = dias <= 1 ? sql`'hour'` : dias <= 62 ? sql`'day'` : sql`'month'`;
+  const formato = dias <= 1 ? sql`'HH24"h"'` : dias <= 62 ? sql`'DD/MM'` : sql`'MM/YYYY'`;
   const serie = await sql<{ rotulo: string; receita: number; custo: number }[]>`
     SELECT to_char(date_trunc(${unidade}, r.inicio AT TIME ZONE 'America/Sao_Paulo'), ${formato}) AS rotulo,
       coalesce(sum(r.valor_centavos) FILTER (WHERE r.motorista_id IS NOT NULL), 0)::bigint AS receita,

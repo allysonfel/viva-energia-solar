@@ -1,6 +1,6 @@
 // Recargas em CSV (mesmos filtros da tela), para admin e operador.
 // Célula que começa com = + - @ ganha ' na frente (evita fórmula no Excel).
-import { getUser } from "@/lib/session";
+import { getUser, parceiroDoEscopo } from "@/lib/session";
 import { audit } from "@/lib/audit";
 import { buscarRecargas, lerFiltro } from "@/lib/recargas";
 import { celulaCsv } from "@/lib/format";
@@ -9,7 +9,8 @@ export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
   const u = await getUser();
-  if (!u || u.perfil === "parceiro") return new Response("proibido", { status: 403 });
+  // Quem é de um parceiro (perfil parceiro ou operador restrito) não exporta: o arquivo tem nome de cliente.
+  if (!u || parceiroDoEscopo(u) || !u.abas.includes("recargas")) return new Response("proibido", { status: 403 });
   const f = lerFiltro(Object.fromEntries(new URL(req.url).searchParams));
   const { linhas } = await buscarRecargas(f, null, 20_000, 1);
   const cab = ["Recarga", "Estação", "Conector", "Cartão", "Cliente", "Origem", "Status", "Início", "Fim", "kWh", "Valor (R$)", "Motivo do fim"];

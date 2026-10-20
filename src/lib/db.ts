@@ -280,10 +280,10 @@ CREATE TABLE IF NOT EXISTS audit_log (
   criado_em TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- Tarifas por faixa de horário (horário de Brasília), iguais para todas as
--- estações. As faixas cobrem as 24 h sem sobrepor (conferido ao salvar). Sem
--- faixas, vale o preço cadastrado em cada estação. A tarifa que vale é a do
--- início da recarga.
+-- Tarifas por horário (horário de Brasília): nome, faixa de horas e preço.
+-- Cada estação escolhe as suas (estacao_tarifas, sem sobrepor horário); fora
+-- delas vale o preço da estação. Faixa com fim antes do início vira a noite
+-- (22h às 06h). A tarifa que vale é a do início da recarga.
 CREATE TABLE IF NOT EXISTS tarifas (
   id SERIAL PRIMARY KEY,
   nome TEXT NOT NULL CHECK (length(nome) BETWEEN 2 AND 30),
@@ -292,6 +292,25 @@ CREATE TABLE IF NOT EXISTS tarifas (
   preco_kwh_centavos INT NOT NULL CHECK (preco_kwh_centavos BETWEEN 1 AND 10000),
   cor TEXT NOT NULL DEFAULT '#34B37A' CHECK (cor ~ '^#[0-9A-Fa-f]{6}$')
 );
+
+CREATE TABLE IF NOT EXISTS estacao_tarifas (
+  estacao_id INT NOT NULL REFERENCES estacoes(id) ON DELETE CASCADE,
+  tarifa_id INT NOT NULL REFERENCES tarifas(id) ON DELETE CASCADE,
+  PRIMARY KEY (estacao_id, tarifa_id)
+);
+-- Grade antiga (fim depois do início, igual para todas as estações): uma vez
+-- só, libera a faixa que vira a noite e liga as tarifas que já existiam a
+-- todas as estações, para nada mudar de preço.
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'tarifas'::regclass AND conname = 'tarifas_check') THEN
+    ALTER TABLE tarifas DROP CONSTRAINT tarifas_check;
+    INSERT INTO estacao_tarifas (estacao_id, tarifa_id) SELECT e.id, t.id FROM estacoes e CROSS JOIN tarifas t ON CONFLICT DO NOTHING;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'tarifas'::regclass AND conname = 'tarifas_horario_ok') THEN
+    ALTER TABLE tarifas ADD CONSTRAINT tarifas_horario_ok CHECK (hora_fim BETWEEN 1 AND 24 AND hora_fim <> hora_inicio);
+  END IF;
+END $$;
 
 -- Vouchers de desconto (% sobre a tarifa). Cada motorista usa um código uma vez.
 CREATE TABLE IF NOT EXISTS vouchers (
@@ -365,6 +384,8 @@ ALTER TABLE recargas ADD COLUMN IF NOT EXISTS desconto_pct INT NOT NULL DEFAULT 
 -- Último aviso de andamento (push com a % da carga) mandado ao motorista.
 ALTER TABLE recargas ADD COLUMN IF NOT EXISTS progresso_aviso_em TIMESTAMPTZ;
 ALTER TABLE recargas ADD COLUMN IF NOT EXISTS progresso_aviso_soc INT;
+-- Abas do painel liberadas para a pessoa (NULL = todas as do perfil).
+ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS abas TEXT[];
 CREATE INDEX IF NOT EXISTS recargas_motorista_idx ON recargas (motorista_id, inicio DESC) WHERE motorista_id IS NOT NULL;
 `;
 

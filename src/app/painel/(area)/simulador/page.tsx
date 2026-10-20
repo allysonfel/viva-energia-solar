@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { requireUser } from "@/lib/session";
+import { requireAba } from "@/lib/session";
 import { sql } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { kw, kwh } from "@/lib/format";
@@ -15,7 +15,7 @@ import { AutoAtualizar } from "@/components/AutoAtualizar";
 
 async function acao(fd: FormData) {
   "use server";
-  const u = await requireUser(["admin", "operador"]);
+  const u = await requireAba("simulador");
   if (!sim.simuladorLigado()) redirect("/painel");
   const codigo = String(fd.get("codigo") ?? "");
   const [e] = await sql<{ id: number }[]>`SELECT id FROM estacoes WHERE codigo = ${codigo} AND simulada AND ativa`;
@@ -37,7 +37,7 @@ async function acao(fd: FormData) {
 
 async function criarCartao(fd: FormData) {
   "use server";
-  const u = await requireUser(["admin", "operador"]);
+  const u = await requireAba("simulador");
   const tag = String(fd.get("tag") ?? "").trim().toUpperCase().slice(0, 20);
   if (!/^[A-Z0-9-]{3,20}$/.test(tag)) redirect("/painel/simulador?erro=Cartão inválido (3 a 20 letras, números ou hífen).");
   await sql`INSERT INTO tags (id_tag, descricao, tipo) VALUES (${tag}, 'Cartão de teste do simulador', 'operacao') ON CONFLICT (id_tag) DO UPDATE SET ativa = true`;
@@ -46,7 +46,7 @@ async function criarCartao(fd: FormData) {
 }
 
 export default async function Simulador({ searchParams }: { searchParams: Promise<{ erro?: string; ok?: string }> }) {
-  const u = await requireUser(["admin", "operador"]);
+  const u = await requireAba("simulador");
   if (!sim.simuladorLigado()) redirect("/painel");
   const sp = await searchParams;
   const estacoes = await sql<{ id: number; codigo: string; nome: string }[]>`SELECT id, codigo, nome FROM estacoes WHERE simulada AND ativa ORDER BY nome`;

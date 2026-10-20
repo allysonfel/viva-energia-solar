@@ -7,20 +7,20 @@ import { Sino } from "./Sino";
 import { BotaoSair } from "./BotaoSair";
 
 type Perfil = "admin" | "operador" | "parceiro";
-type Item = { href: string; nome: string; ic: string; perfis?: Perfil[] };
+type Item = { href: string; nome: string; ic: string; aba?: string; perfis?: Perfil[] };
 
 const NAV: (Item | string)[] = [
   { href: "/painel", nome: "Visão geral", ic: "grid" },
-  { href: "/painel/estacoes", nome: "Estações", ic: "plug" },
-  { href: "/painel/recargas", nome: "Recargas", ic: "list" },
+  { href: "/painel/estacoes", nome: "Estações", ic: "plug", aba: "estacoes" },
+  { href: "/painel/recargas", nome: "Recargas", ic: "list", aba: "recargas" },
   "Comercial",
-  { href: "/painel/tarifas", nome: "Tarifas", ic: "clock", perfis: ["admin", "operador"] },
-  { href: "/painel/vouchers", nome: "Vouchers", ic: "ticket", perfis: ["admin", "operador"] },
-  { href: "/painel/clientes", nome: "Clientes", ic: "users", perfis: ["admin", "operador"] },
-  { href: "/painel/relatorios", nome: "Relatórios", ic: "chart" },
+  { href: "/painel/tarifas", nome: "Tarifas", ic: "clock", aba: "tarifas" },
+  { href: "/painel/vouchers", nome: "Vouchers", ic: "ticket", aba: "vouchers" },
+  { href: "/painel/clientes", nome: "Clientes", ic: "users", aba: "clientes" },
+  { href: "/painel/relatorios", nome: "Relatórios", ic: "chart", aba: "relatorios" },
   "Gestão",
   { href: "/painel/equipe", nome: "Equipe", ic: "shield", perfis: ["admin"] },
-  { href: "/painel/simulador", nome: "Simulador", ic: "sliders", perfis: ["admin", "operador"] },
+  { href: "/painel/simulador", nome: "Simulador", ic: "sliders", aba: "simulador" },
   { href: "/painel/configuracoes", nome: "Configurações", ic: "settings", perfis: ["admin"] },
 ];
 
@@ -30,7 +30,7 @@ const TITULO: [RegExp, string][] = [
   [/^\/painel\/estacoes\/.+/, "Estação"],
   [/^\/painel\/estacoes/, "Estações"],
   [/^\/painel\/recargas/, "Recargas"],
-  [/^\/painel\/tarifas/, "Tarifas por horário"],
+  [/^\/painel\/tarifas/, "Tarifas"],
   [/^\/painel\/vouchers/, "Vouchers"],
   [/^\/painel\/clientes\/.+/, "Cliente"],
   [/^\/painel\/clientes/, "Clientes"],
@@ -53,14 +53,14 @@ export function Shell({
   vapid,
 }: {
   children: React.ReactNode;
-  user: { nome: string; perfil: Perfil; parceiro: string | null };
+  user: { nome: string; perfil: Perfil; parceiro: string | null; abas: string[] };
   empresa: string;
   simulador: boolean;
   sair: () => Promise<void>;
   vapid: string | null;
 }) {
   const path = usePathname();
-  const pode = (n: Item) => (!n.perfis || n.perfis.includes(user.perfil)) && (n.href !== "/painel/simulador" || simulador);
+  const pode = (n: Item) => (!n.perfis || n.perfis.includes(user.perfil)) && (!n.aba || user.abas.includes(n.aba)) && (n.href !== "/painel/simulador" || simulador);
   const itens = NAV.filter((n) => typeof n === "string" || pode(n));
   // Grupo sem itens visíveis não aparece.
   const visiveis = itens.filter((n, i) => typeof n !== "string" || (itens[i + 1] && typeof itens[i + 1] !== "string"));

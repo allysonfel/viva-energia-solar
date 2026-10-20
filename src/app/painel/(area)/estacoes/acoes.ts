@@ -5,13 +5,14 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { sql } from "@/lib/db";
-import { requireUser, parceiroDoEscopo, podeOperar } from "@/lib/session";
+import { requireUser, requireAba, parceiroDoEscopo, podeOperar } from "@/lib/session";
 import { hashPassword, randomId } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import { centavosDe } from "@/lib/format";
 import { guardarSegredo } from "@/lib/segredo";
 import { estacaoDoEscopo } from "@/lib/estacoes";
 import { TIPOS_CONECTOR } from "@/lib/ocpp/tipos";
+import { conflitoDeHorario, type Tarifa } from "@/lib/tarifas";
 import * as cmd from "@/lib/ocpp/comandos";
 import { ligar, desligar, simuladorLigado } from "@/lib/ocpp/simulador";
 
@@ -43,19 +44,32 @@ function lerDados(fd: FormData) {
   };
 }
 
+// Tarifas marcadas para a estação: só as que existem e sem horário repetido.
+async function lerTarifas(fd: FormData): Promise<{ ids: number[] } | { erro: string }> {
+  const pedidas = [...new Set(fd.getAll("tarifa").map(Number).filter((n) => Number.isInteger(n) && n > 0))];
+  if (!pedidas.length) return { ids: [] };
+  const ts = await sql<Tarifa[]>`SELECT id, nome, hora_inicio, hora_fim, preco_kwh_centavos, cor FROM tarifas WHERE id = ANY(${pedidas})`;
+  const conflito = conflitoDeHorario(ts);
+  return conflito ? { erro: conflito } : { ids: ts.map((t) => t.id) };
+}
+
 async function parceiroExiste(id: number | null) {
   if (!id) return true;
   const [p] = await sql`SELECT 1 FROM parceiros WHERE id = ${id}`;
   return !!p;
 }
 
-export async function criarEstacao(fd: FormData) {
+export type RespostaEstacao = { erro: string } | null;
+
+export async function criarEstacao(_: RespostaEstacao, fd: FormData): Promise<RespostaEstacao> {
   const u = await requireUser(["admin"]);
   const codigo = texto(fd, "codigo", 40).toUpperCase();
-  if (!/^[A-Z0-9._-]{3,40}$/.test(codigo)) redirect("/painel/estacoes/nova?erro=codigo");
+  if (!/^[A-Z0-9._-]{3,40}$/.test(codigo)) return { erro: "Código inválido: use de 3 a 40 letras, números, ponto, hífen ou sublinhado (ex.: VIVA-JPA-07)." };
   const r = lerDados(fd);
-  if (!r.dados) redirect(`/painel/estacoes/nova?erro=${encodeURIComponent(r.erro)}`);
-  if (!(await parceiroExiste(r.dados.parceiro_id))) redirect("/painel/estacoes/nova?erro=parceiro");
+  if (!r.dados) return { erro: r.erro };
+  if (!(await parceiroExiste(r.dados.parceiro_id))) return { erro: "Parceiro não encontrado." };
+  const tarifas = await lerTarifas(fd);
+  if ("erro" in tarifas) return { erro: tarifas.erro };
   const simulada = fd.get("simulada") === "1" && simuladorLigado();
   // Conectores: até 4, cada um com tipo e potência (kW).
   const conectores: { tipo: string; w: number }[] = [];
@@ -63,12 +77,12 @@ export async function criarEstacao(fd: FormData) {
     const tipo = texto(fd, `tipo${i}`, 20);
     if (!tipo) continue;
     const kw = Number(String(fd.get(`kw${i}`) ?? "").replace(",", "."));
-    if (!TIPOS_CONECTOR.includes(tipo) || !Number.isFinite(kw) || kw < 1 || kw > 1000) redirect("/painel/estacoes/nova?erro=conector");
+    if (!TIPOS_CONECTOR.includes(tipo) || !Number.isFinite(kw) || kw < 1 || kw > 1000) return { erro: `Conector ${i}: escolha o tipo e informe a potência entre 1 e 1000 kW.` };
     conectores.push({ tipo, w: Math.round(kw * 1000) });
   }
-  if (!conectores.length) redirect("/painel/estacoes/nova?erro=conector");
+  if (!conectores.length) return { erro: "Cadastre pelo menos um conector." };
   const [existe] = await sql`SELECT 1 FROM estacoes WHERE codigo = ${codigo}`;
-  if (existe) redirect("/painel/estacoes/nova?erro=duplicado");
+  if (existe) return { erro: "Já existe uma estação com esse código." };
 
   const senha = simulada ? null : randomId(18);
   const d = r.dados;
@@ -81,9 +95,10 @@ export async function criarEstacao(fd: FormData) {
     for (const [i, c] of conectores.entries()) {
       await tx`INSERT INTO conectores (estacao_id, numero, tipo, potencia_w) VALUES (${e.id}, ${i + 1}, ${c.tipo}, ${c.w})`;
     }
+    for (const t of tarifas.ids) await tx`INSERT INTO estacao_tarifas (estacao_id, tarifa_id) VALUES (${e.id}, ${t})`;
     return e.id;
   });
-  await audit(`usuario:${u.id}`, "estacao_criada", "estacao", id, codigo);
+  await audit(`usuario:${u.id}`, "estacao_criada", "estacao", id, `${codigo}${tarifas.ids.length ? ` · tarifas ${tarifas.ids.join(",")}` : ""}`);
   if (senha) await guardarSegredo("ocpp", id, senha);
   if (simulada) await ligar(codigo).catch(() => {});
   redirect(`/painel/estacoes/${id}?criada=1`);
@@ -97,12 +112,18 @@ export async function editarEstacao(fd: FormData) {
   const r = lerDados(fd);
   if (!r.dados) redirect(`/painel/estacoes/${id}?erro=${encodeURIComponent(r.erro)}`);
   if (!(await parceiroExiste(r.dados.parceiro_id))) redirect(`/painel/estacoes/${id}?erro=parceiro`);
+  const tarifas = await lerTarifas(fd);
+  if ("erro" in tarifas) redirect(`/painel/estacoes/${id}?erro=${encodeURIComponent(tarifas.erro)}`);
   const d = r.dados;
-  await sql`
-    UPDATE estacoes SET nome = ${d.nome}, endereco = ${d.endereco}, bairro = ${d.bairro}, cidade = ${d.cidade}, lat = ${d.lat}, lng = ${d.lng},
-      preco_kwh_centavos = ${d.preco_kwh_centavos}, custo_kwh_centavos = ${d.custo_kwh_centavos}, parceiro_id = ${d.parceiro_id}
-    WHERE id = ${id}`;
-  await audit(`usuario:${u.id}`, "estacao_editada", "estacao", id);
+  await sql.begin(async (tx) => {
+    await tx`
+      UPDATE estacoes SET nome = ${d.nome}, endereco = ${d.endereco}, bairro = ${d.bairro}, cidade = ${d.cidade}, lat = ${d.lat}, lng = ${d.lng},
+        preco_kwh_centavos = ${d.preco_kwh_centavos}, custo_kwh_centavos = ${d.custo_kwh_centavos}, parceiro_id = ${d.parceiro_id}
+      WHERE id = ${id}`;
+    await tx`DELETE FROM estacao_tarifas WHERE estacao_id = ${id}`;
+    for (const t of tarifas.ids) await tx`INSERT INTO estacao_tarifas (estacao_id, tarifa_id) VALUES (${id}, ${t})`;
+  });
+  await audit(`usuario:${u.id}`, "estacao_editada", "estacao", id, tarifas.ids.length ? `tarifas ${tarifas.ids.join(",")}` : "sem tarifas por horário");
   redirect(`/painel/estacoes/${id}?ok=dados`);
 }
 
@@ -156,7 +177,7 @@ export async function arquivarEstacao(fd: FormData) {
 export type Retorno = { ok: boolean; texto: string } | null;
 
 async function operavel(fd: FormData) {
-  const u = await requireUser();
+  const u = await requireAba("estacoes");
   if (!podeOperar(u)) return { u, e: null, erro: "Seu perfil não envia comandos." };
   const e = await estacaoDoEscopo(Number(fd.get("id")), parceiroDoEscopo(u));
   if (!e) return { u, e: null, erro: "Estação não encontrada." };

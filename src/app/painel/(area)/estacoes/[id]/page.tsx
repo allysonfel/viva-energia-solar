@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { headers } from "next/headers";
-import { requireUser, parceiroDoEscopo, podeOperar } from "@/lib/session";
+import { requireAba, parceiroDoEscopo, podeOperar } from "@/lib/session";
 import { sql } from "@/lib/db";
 import { listarEstacoes } from "@/lib/estacoes";
 import { lerSegredo } from "@/lib/segredo";
@@ -12,6 +12,8 @@ import { Ic } from "@/components/Ic";
 import { AutoAtualizar } from "@/components/AutoAtualizar";
 import { Comandos, PararRecarga } from "./Comandos";
 import { editarEstacao, novaSenhaOcpp, editarConector, arquivarEstacao } from "../acoes";
+import { EscolherTarifas } from "../EscolherTarifas";
+import { listarTarifas, tarifasDaEstacao, horarioDa, faixaNoHorario } from "@/lib/tarifas";
 
 const OK: Record<string, string> = { dados: "Dados da estação salvos.", conector: "Conector salvo." };
 const ERROS: Record<string, string> = { conector: "Conector inválido.", parceiro: "Parceiro não encontrado." };
@@ -37,7 +39,7 @@ export default async function Estacao({ params, searchParams }: {
   params: Promise<{ id: string }>;
   searchParams: Promise<{ ok?: string; erro?: string; criada?: string; senha?: string }>;
 }) {
-  const u = await requireUser();
+  const u = await requireAba("estacoes");
   const id = Number((await params).id);
   if (!Number.isInteger(id) || id <= 0) notFound();
   const [e] = await listarEstacoes(parceiroDoEscopo(u), id);
@@ -57,6 +59,8 @@ export default async function Estacao({ params, searchParams }: {
   const ultimas = await sql<{ id: number; conector_numero: number; inicio: Date; fim: Date | null; energia_wh: number; valor_centavos: number; status: string }[]>`
     SELECT id, conector_numero, inicio, fim, energia_wh, valor_centavos, status FROM recargas WHERE estacao_id = ${id} ORDER BY inicio DESC LIMIT 8`;
   const parceiros = admin ? await sql<{ id: number; nome: string }[]>`SELECT id, nome FROM parceiros ORDER BY nome` : [];
+  const [daEstacao, todasTarifas] = await Promise.all([tarifasDaEstacao(id), admin ? listarTarifas() : []]);
+  const tarifaAgora = faixaNoHorario(daEstacao);
   const senha = admin && !e.simulada ? await lerSegredo("ocpp", id) : "";
   const maxKw = Math.max(7, Math.round(e.conectores.reduce((s, c) => s + c.potencia_w, 0) / 1000));
   const limiteKw = e.limite_w ? Math.round(e.limite_w / 1000) : maxKw;
@@ -153,9 +157,21 @@ export default async function Estacao({ params, searchParams }: {
                 <div><small>Série</small><b>{det.numero_serie || "-"}</b></div>
               </div>
               <div className="kv" style={{ marginTop: 10 }}>
-                <div><small>Preço</small><b>{brl(det.preco_kwh_centavos)}/kWh</b></div>
+                <div><small>Preço agora</small><b>{brl(tarifaAgora?.preco_kwh_centavos ?? det.preco_kwh_centavos)}/kWh</b></div>
                 <div><small>Custo energia</small><b>{brl(det.custo_kwh_centavos)}/kWh</b></div>
                 <div><small>Local</small><b>{e.parceiro ?? "Própria"}</b></div>
+              </div>
+              <div style={{ marginTop: 12, display: "grid", gap: 6, fontSize: 12.5 }}>
+                {daEstacao.map((t) => (
+                  <div key={t.id} className="between">
+                    <span className="row" style={{ gap: 6 }}><span className="dot" style={{ background: t.cor }} />{t.nome} · {horarioDa(t)}</span>
+                    <b className="mono" style={tarifaAgora?.id === t.id ? { color: "var(--g600)" } : undefined}>{brl(t.preco_kwh_centavos)}</b>
+                  </div>
+                ))}
+                <div className="between">
+                  <span className="muted">{daEstacao.length ? "Demais horários" : "Preço único, o dia todo"}</span>
+                  <b className="mono" style={!tarifaAgora ? { color: "var(--g600)" } : undefined}>{brl(det.preco_kwh_centavos)}</b>
+                </div>
               </div>
             </div>
           </div>
@@ -221,7 +237,7 @@ export default async function Estacao({ params, searchParams }: {
                     <div className="field"><label>Cidade</label><input className="input" name="cidade" maxLength={60} defaultValue={e.cidade} /></div>
                     <div className="field"><label>Latitude</label><input className="input mono" name="lat" maxLength={20} defaultValue={det.lat ?? ""} /></div>
                     <div className="field"><label>Longitude</label><input className="input mono" name="lng" maxLength={20} defaultValue={det.lng ?? ""} /></div>
-                    <div className="field"><label>Preço por kWh (R$)</label><input className="input mono" name="preco" required maxLength={8} defaultValue={real(det.preco_kwh_centavos)} /></div>
+                    <div className="field"><label>Preço por kWh (R$) fora das tarifas</label><input className="input mono" name="preco" required maxLength={8} defaultValue={real(det.preco_kwh_centavos)} /></div>
                     <div className="field"><label>Custo por kWh (R$)</label><input className="input mono" name="custo" maxLength={8} defaultValue={real(det.custo_kwh_centavos)} /></div>
                     <div className="field full">
                       <label>Parceiro / local</label>
@@ -231,7 +247,12 @@ export default async function Estacao({ params, searchParams }: {
                       </select>
                     </div>
                   </div>
-                  <button className="btn btn-dark btn-sm">Salvar dados</button>
+                  <div className="box-title" style={{ marginTop: 4 }}>Tarifas por horário</div>
+                  <EscolherTarifas
+                    tarifas={todasTarifas.map((t) => ({ id: t.id, nome: t.nome, cor: t.cor, horario: horarioDa(t), preco: real(t.preco_kwh_centavos), hora_inicio: t.hora_inicio, hora_fim: t.hora_fim }))}
+                    marcadas={daEstacao.map((t) => t.id)}
+                  />
+                  <button className="btn btn-dark btn-sm" style={{ marginTop: 12 }}>Salvar dados</button>
                 </div>
               </form>
 

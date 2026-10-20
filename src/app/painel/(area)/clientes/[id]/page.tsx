@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { requireUser } from "@/lib/session";
+import { requireUser, requireAba } from "@/lib/session";
 import { sql } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { ajustarSaldo } from "@/lib/carteira";
@@ -29,7 +29,7 @@ async function ajustar(fd: FormData) {
 // Voucher de cortesia: já entra resgatado na carteira do cliente.
 async function enviarVoucher(fd: FormData) {
   "use server";
-  const u = await requireUser(["admin", "operador"]);
+  const u = await requireAba("clientes");
   const id = Number(fd.get("id"));
   const voucher = Number(fd.get("voucher"));
   const [v] = await sql<{ id: number; codigo: string }[]>`
@@ -63,7 +63,7 @@ const MSG: Record<string, [string, string]> = {
 };
 
 export default async function Cliente({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ ok?: string; erro?: string }> }) {
-  const u = await requireUser(["admin", "operador"]);
+  const u = await requireAba("clientes");
   const id = Number((await params).id);
   if (!Number.isInteger(id) || id <= 0) notFound();
   const q = await searchParams;

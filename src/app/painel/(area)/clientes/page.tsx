@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { requireUser } from "@/lib/session";
+import { requireAba } from "@/lib/session";
 import { sql } from "@/lib/db";
 import { brl, num, haQuanto } from "@/lib/format";
 import { Ic } from "@/components/Ic";
@@ -7,7 +7,7 @@ import { Ic } from "@/components/Ic";
 type C = { id: number; nome: string; email: string; veiculo: string; placa: string; recargas: number; gasto: number; saldo_centavos: number; ultima: Date | null; ativo: boolean };
 
 export default async function Clientes({ searchParams }: { searchParams: Promise<{ q?: string; pg?: string }> }) {
-  const u = await requireUser(["admin", "operador"]);
+  const u = await requireAba("clientes");
   const sp = await searchParams;
   const busca = String(sp.q ?? "").trim().slice(0, 60);
   const pagina = Math.max(1, Math.min(1000, Number(sp.pg) || 1));

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { requireUser } from "@/lib/session";
+import { requireUser, requireAba } from "@/lib/session";
 import { sql } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { Ic } from "@/components/Ic";
@@ -53,7 +53,7 @@ const ERROS: Record<string, string> = {
 };
 
 export default async function Vouchers({ searchParams }: { searchParams: Promise<{ f?: string; ok?: string; erro?: string }> }) {
-  const u = await requireUser(["admin", "operador"]);
+  const u = await requireAba("vouchers");
   const q = await searchParams;
   const inativos = q.f === "inativos";
   const lista = await sql<V[]>`

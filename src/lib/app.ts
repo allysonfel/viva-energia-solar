@@ -1,7 +1,7 @@
 // Consultas do app do motorista.
 import { sql } from "./db";
 import { situacaoEstacao, situacaoConector, type Situacao } from "./ocpp/tipos";
-import { listarTarifas, precoNoHorario } from "./tarifas";
+import { tarifasPorEstacao, precoNoHorario } from "./tarifas";
 
 export type EstacaoApp = {
   id: number;
@@ -30,9 +30,9 @@ export async function estacoesDoMapa(codigo?: string): Promise<EstacaoApp[]> {
     FROM estacoes e
     WHERE e.ativa ${codigo ? sql`AND e.codigo = ${codigo}` : sql`AND e.lat IS NOT NULL AND e.lng IS NOT NULL`}
     ORDER BY e.nome`;
-  const tarifas = await listarTarifas();
+  const tarifas = await tarifasPorEstacao();
   return rows.map(({ conectada, habilitada, status_geral, conectores, ...e }) => {
-    const t = precoNoHorario(tarifas, e.preco_kwh_centavos);
+    const t = precoNoHorario(tarifas.get(e.id) ?? [], e.preco_kwh_centavos);
     const cs = (conectores ?? []).map((c) => ({ numero: c.numero, tipo: c.tipo, potencia_w: c.potencia_w, situacao: situacaoConector(conectada, habilitada ? c.status : "Unavailable"), status: c.status }));
     return {
       ...e,

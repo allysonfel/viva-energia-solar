@@ -7,17 +7,15 @@ import { Badge } from "@/components/Badge";
 import { Ic } from "@/components/Ic";
 import { brl, kw } from "@/lib/format";
 import type { EstacaoApp as Est, Proxima } from "@/lib/app";
-import type { Tarifa } from "@/lib/tarifas";
 import { iniciarRecargaApp, type Resposta } from "../../acoes";
 
-export function EstacaoApp({ e, conectorInicial, saldo, saldoMinimo, meusConectores, tarifas, horaAgora, vouchers, proximas }: {
+export function EstacaoApp({ e, conectorInicial, saldo, saldoMinimo, meusConectores, grade, vouchers, proximas }: {
   e: Est;
   conectorInicial: number | null;
   saldo: number;
   saldoMinimo: number;
   meusConectores: string[];
-  tarifas: Tarifa[];
-  horaAgora: number;
+  grade: { tarifas: { id: number; nome: string; cor: string; preco: number; horario: string; agora: boolean }[]; blocos: { horas: number; cor: string | null }[]; precoBase: number };
   vouchers: { mv: number; codigo: string; pct: number }[];
   proximas: Proxima[];
 }) {
@@ -138,18 +136,24 @@ export function EstacaoApp({ e, conectorInicial, saldo, saldoMinimo, meusConecto
               ))}
             </div>
           )}
-          {tarifas.length > 0 && (
+          {grade.tarifas.length > 0 && (
             <div className="box" style={{ marginTop: 6 }}>
               <div className="box-title">Tarifa por horário {e.tarifa_nome && <span className="badge b-disponivel">{e.tarifa_nome} agora</span>}</div>
-              <div className="tariff-strip">{tarifas.map((t) => <div key={t.id} style={{ flex: t.hora_fim - t.hora_inicio, background: t.cor }} />)}</div>
+              <div className="tariff-strip">{grade.blocos.map((b, i) => <div key={i} style={{ flex: b.horas, background: b.cor ?? "var(--line)" }} />)}</div>
               <div className="tariff-scale"><span>00h</span><span>06h</span><span>12h</span><span>18h</span><span>24h</span></div>
               <div style={{ marginTop: 10, display: "grid", gap: 6, fontSize: 12.5 }}>
-                {tarifas.map((t) => (
+                {grade.tarifas.map((t) => (
                   <div key={t.id} className="between">
-                    <span className="row" style={{ gap: 6 }}><span className="dot" style={{ background: t.cor }} />{t.nome} {String(t.hora_inicio).padStart(2, "0")}h a {String(t.hora_fim).padStart(2, "0")}h</span>
-                    <b className="mono" style={horaAgora >= t.hora_inicio && horaAgora < t.hora_fim ? { color: "var(--g600)" } : undefined}>{brl(t.preco_kwh_centavos)}</b>
+                    <span className="row" style={{ gap: 6 }}><span className="dot" style={{ background: t.cor }} />{t.nome} · {t.horario}</span>
+                    <b className="mono" style={t.agora ? { color: "var(--g600)" } : undefined}>{brl(t.preco)}</b>
                   </div>
                 ))}
+                {grade.blocos.some((b) => !b.cor) && (
+                  <div className="between">
+                    <span className="row" style={{ gap: 6 }}><span className="dot" style={{ background: "var(--line)" }} />Demais horários</span>
+                    <b className="mono" style={!e.tarifa_nome ? { color: "var(--g600)" } : undefined}>{brl(grade.precoBase)}</b>
+                  </div>
+                )}
               </div>
               <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>Vale a tarifa do horário em que a recarga começa.</div>
             </div>

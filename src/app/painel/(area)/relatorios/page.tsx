@@ -1,38 +1,52 @@
-import { requireUser, parceiroDoEscopo } from "@/lib/session";
+import { requireAba, parceiroDoEscopo } from "@/lib/session";
 import { sql } from "@/lib/db";
-import { gerarRelatorio, lerPeriodo, PERIODOS } from "@/lib/relatorios";
-import { brl, kwh, num, dataBr } from "@/lib/format";
+import { manterDemonstracaoViva } from "@/lib/demonstracao";
+import { gerarRelatorio } from "@/lib/relatorios";
+import { lerIntervalo, paramsIntervalo, rotuloIntervalo, type Periodo } from "@/lib/periodo";
+import { brl, kwh, num } from "@/lib/format";
 import { GraficoReceitaCusto } from "@/components/Grafico";
 import { Ic } from "@/components/Ic";
+import { FormFiltro, CampoPeriodo } from "@/components/Filtros";
 
-export default async function Relatorios({ searchParams }: { searchParams: Promise<{ p?: string; estacao?: string }> }) {
-  const u = await requireUser();
+const OPCOES: Periodo[] = ["hoje", "ontem", "7d", "mes", "mes_anterior", "30d", "ano", "personalizado"];
+
+export default async function Relatorios({ searchParams }: { searchParams: Promise<{ p?: string; de?: string; ate?: string; estacao?: string; parceiro?: string }> }) {
+  const u = await requireAba("relatorios");
+  await manterDemonstracaoViva();
   const q = await searchParams;
-  const p = lerPeriodo(q.p);
-  const parceiro = parceiroDoEscopo(u);
+  const periodo = lerIntervalo(q, "mes", OPCOES);
+  // Quem é de um parceiro fica preso nele; admin e operador da rede podem filtrar.
+  const escopo = parceiroDoEscopo(u);
+  const parceiros = escopo ? [] : await sql<{ id: number; nome: string }[]>`SELECT id, nome FROM parceiros ORDER BY nome`;
+  const pedido = Number(q.parceiro) || null;
+  const parceiro = escopo ?? (pedido && parceiros.some((p) => p.id === pedido) ? pedido : null);
   const estacoes = await sql<{ id: number; nome: string }[]>`
     SELECT id, nome FROM estacoes WHERE ativa ${parceiro ? sql`AND parceiro_id = ${parceiro}` : sql``} ORDER BY nome`;
-  const est = Number(q.estacao) || null;
-  const r = await gerarRelatorio(p, { estacao: est && estacoes.some((e) => e.id === est) ? est : null, parceiro });
+  const pedida = Number(q.estacao) || null;
+  const est = pedida && estacoes.some((e) => e.id === pedida) ? pedida : null;
+  const r = await gerarRelatorio(periodo, { estacao: est, parceiro });
   const t = r.total;
-  const ehParceiro = u.perfil === "parceiro";
-  const params = new URLSearchParams({ p, ...(est ? { estacao: String(est) } : {}) });
-  const fimExibido = new Date(r.periodo.fim.getTime() - 1);
+  // Quem é de um parceiro vê o valor apurado e o repasse, não custo e resultado da Viva.
+  const ehParceiro = !!escopo;
+  const params = new URLSearchParams([...paramsIntervalo(periodo), ...(est ? [["estacao", String(est)]] : []), ...(!escopo && parceiro ? [["parceiro", String(parceiro)]] : [])]);
 
   return (
     <>
-      <form className="toolbar" style={{ marginBottom: 14 }} action="/painel/relatorios">
-        <select className="input" name="p" defaultValue={p}>
-          {Object.entries(PERIODOS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-        </select>
-        <select className="input" name="estacao" defaultValue={est ?? ""}>
-          <option value="">{ehParceiro ? "Minhas estações" : "Todas as estações"}</option>
+      <FormFiltro className="toolbar" style={{ marginBottom: 14 }} action="/painel/relatorios">
+        <CampoPeriodo p={periodo.p} de={periodo.de} ate={periodo.ate} opcoes={OPCOES} />
+        {parceiros.length > 0 && (
+          <select className="input" name="parceiro" defaultValue={parceiro ?? ""} aria-label="Parceiro" key={`p${parceiro}`}>
+            <option value="">Todos os parceiros e próprias</option>
+            {parceiros.map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}
+          </select>
+        )}
+        <select className="input" name="estacao" defaultValue={est ?? ""} aria-label="Estação" key={`e${parceiro}-${est}`}>
+          <option value="">{escopo ? "Todas as minhas estações" : parceiro ? "Todas as estações do parceiro" : "Todas as estações"}</option>
           {estacoes.map((e) => <option key={e.id} value={e.id}>{e.nome}</option>)}
         </select>
-        <button className="btn btn-dark btn-sm">Ver</button>
-        <span className="muted" style={{ fontSize: 12.5 }}>{dataBr(r.periodo.ini)} a {dataBr(fimExibido)}</span>
+        <span className="muted" style={{ fontSize: 12.5 }}>{rotuloIntervalo(periodo)}</span>
         <a className="btn btn-ghost btn-sm" href={`/painel/relatorios/exportar?${params}`} style={{ marginLeft: "auto" }}><Ic n="download" />Planilha</a>
-      </form>
+      </FormFiltro>
 
       {ehParceiro ? (
         <div className="kpis" style={{ gridTemplateColumns: "repeat(4,1fr)" }}>
@@ -53,10 +67,10 @@ export default async function Relatorios({ searchParams }: { searchParams: Promi
 
       <div className="panel" style={{ marginBottom: 16 }}>
         <div className="panel-h">
-          <h3>Receita x custo de energia</h3>
-          <div className="chart-legend"><span><i style={{ background: "#177148" }} />Receita</span><span><i style={{ background: "#C4F53A" }} />Custo de energia</span></div>
+          <h3>{ehParceiro ? "Receita" : "Receita x custo de energia"}</h3>
+          <div className="chart-legend"><span><i style={{ background: "#177148" }} />Receita</span>{!ehParceiro && <span><i style={{ background: "#C4F53A" }} />Custo de energia</span>}</div>
         </div>
-        <div className="panel-b"><GraficoReceitaCusto serie={r.serie} /></div>
+        <div className="panel-b"><GraficoReceitaCusto serie={r.serie} soReceita={ehParceiro} /></div>
       </div>
 
       <div className="panel" style={{ marginBottom: 16 }}>

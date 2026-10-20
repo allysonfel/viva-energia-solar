@@ -1,24 +1,16 @@
 // Busca de recargas com filtros (tela e exportação usam a mesma consulta).
 import { sql } from "./db";
+import { lerIntervalo, type Intervalo, type Periodo } from "./periodo";
 
-export const PERIODOS = { hoje: "Hoje", "7d": "Últimos 7 dias", mes: "Este mês", "30d": "Últimos 30 dias", tudo: "Tudo" } as const;
-export type Periodo = keyof typeof PERIODOS;
+export const PERIODOS_RECARGAS: Periodo[] = ["hoje", "ontem", "7d", "mes", "mes_anterior", "30d", "tudo", "personalizado"];
 
 // soReais: deixa de fora as estações simuladas (dados de demonstração).
-export type Filtro = { estacao: number | null; periodo: Periodo; status: string | null; busca: string; soReais?: boolean };
+export type Filtro = { estacao: number | null; periodo: Intervalo; status: string | null; busca: string; soReais?: boolean };
 
 export function lerFiltro(q: Record<string, string | undefined>): Filtro {
-  const periodo = (q.p && q.p in PERIODOS ? q.p : "7d") as Periodo;
   const status = ["em_andamento", "concluida", "interrompida", "recusada"].includes(q.s ?? "") ? q.s! : null;
-  return { estacao: Number(q.estacao) || null, periodo, status, busca: String(q.q ?? "").trim().slice(0, 40) };
+  return { estacao: Number(q.estacao) || null, periodo: lerIntervalo(q, "7d", PERIODOS_RECARGAS), status, busca: String(q.q ?? "").trim().slice(0, 40) };
 }
-
-const desde = (p: Periodo) =>
-  p === "hoje" ? sql`date_trunc('day', now() AT TIME ZONE 'America/Sao_Paulo') AT TIME ZONE 'America/Sao_Paulo'`
-  : p === "7d" ? sql`now() - interval '7 days'`
-  : p === "mes" ? sql`date_trunc('month', now() AT TIME ZONE 'America/Sao_Paulo') AT TIME ZONE 'America/Sao_Paulo'`
-  : p === "30d" ? sql`now() - interval '30 days'`
-  : sql`'-infinity'::timestamptz`;
 
 export type LinhaRecarga = {
   id: number; estacao: string; estacao_id: number; conector_numero: number; conector: string | null; id_tag: string; origem: string;
@@ -29,7 +21,7 @@ export type LinhaRecarga = {
 export async function buscarRecargas(f: Filtro, parceiro: number | null, limite = 50, pagina = 1) {
   const buscaId = /^#?\d+$/.test(f.busca) ? Number(f.busca.replace("#", "")) : null;
   const onde = sql`
-    WHERE r.inicio >= ${desde(f.periodo)}
+    WHERE r.inicio >= ${f.periodo.ini} AND r.inicio < ${f.periodo.fim}
     ${parceiro ? sql`AND e.parceiro_id = ${parceiro}` : sql``}
     ${f.estacao ? sql`AND r.estacao_id = ${f.estacao}` : sql``}
     ${f.status ? sql`AND r.status = ${f.status}` : sql``}

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { headers } from "next/headers";
 import QRCode from "qrcode";
-import { requireUser, parceiroDoEscopo } from "@/lib/session";
+import { requireAba, parceiroDoEscopo } from "@/lib/session";
 import { listarEstacoes } from "@/lib/estacoes";
 import { kw } from "@/lib/format";
 import { Ic } from "@/components/Ic";
@@ -10,7 +10,7 @@ import { Ic } from "@/components/Ic";
 // QR code de cada conector, para imprimir e colar no carregador. Leva para
 // /e/<código>/<conector>: o app abre a estação com o conector escolhido.
 export default async function QrEstacao({ params }: { params: Promise<{ id: string }> }) {
-  const u = await requireUser();
+  const u = await requireAba("estacoes");
   const id = Number((await params).id);
   const [e] = Number.isInteger(id) && id > 0 ? await listarEstacoes(parceiroDoEscopo(u), id) : [];
   if (!e) notFound();

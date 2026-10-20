@@ -12,7 +12,7 @@ import { verifyPassword } from "../auth";
 import { getSettings } from "../settings";
 import { abrirAviso, resolverAviso } from "../avisos";
 import { cobrarRecarga } from "../carteira";
-import { listarTarifas, precoNoHorario } from "../tarifas";
+import { tarifasDaEstacao, precoNoHorario } from "../tarifas";
 import { avisarMotorista, avisarProgresso } from "../notificar";
 import { brl } from "../format";
 import { lerFrame, lerMedidor, type Call } from "./tipos";
@@ -284,7 +284,7 @@ const HANDLERS: Record<string, Handler> = {
     const [e] = await sql<{ preco_kwh_centavos: number; custo_kwh_centavos: number }[]>`
       SELECT preco_kwh_centavos, custo_kwh_centavos FROM estacoes WHERE id = ${c.estacaoId}`;
     // Tarifa do horário de início; voucher (se o motorista escolheu) aplicado em %.
-    const tarifa = precoNoHorario(await listarTarifas(), e?.preco_kwh_centavos ?? 0, inicio);
+    const tarifa = precoNoHorario(await tarifasDaEstacao(c.estacaoId), e?.preco_kwh_centavos ?? 0, inicio);
     const motoristaId = daIntencao?.motoristaId ?? tag.motorista;
     const { id, fechadas } = await sql.begin(async (tx) => {
       let voucher: { mv: number; voucher_id: number; pct: number } | null = null;

@@ -18,7 +18,7 @@ export default async function PainelLayout({ children }: { children: React.React
   const user = await requireUser();
   const s = await getSettings();
   return (
-    <Shell user={{ nome: user.nome, perfil: user.perfil, parceiro: user.parceiro_nome }} empresa={s.empresa} simulador={simuladorLigado()} sair={sair} vapid={vapidPublica()}>
+    <Shell user={{ nome: user.nome, perfil: user.perfil, parceiro: user.parceiro_nome, abas: user.abas }} empresa={s.empresa} simulador={simuladorLigado()} sair={sair} vapid={vapidPublica()}>
       {children}
     </Shell>
   );
