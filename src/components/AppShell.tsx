@@ -21,6 +21,9 @@ export function AppShell({ children, nome, recargaInicial, naoLidosInicial, tema
   const path = usePathname();
   const [recarga, setRecarga] = useState(recargaInicial);
   const [naoLidos, setNaoLidos] = useState(naoLidosInicial);
+  // Aba tocada: marca na hora, sem esperar a tela nova chegar do servidor.
+  const [indo, setIndo] = useState<string | null>(null);
+  useEffect(() => setIndo(null), [path]);
 
   // Confere se há recarga em andamento a cada troca de tela e a cada 15 s
   // (começou pelo cartão no carregador, terminou, foi encerrada pelo botão).
@@ -48,7 +51,12 @@ export function AppShell({ children, nome, recargaInicial, naoLidosInicial, tema
   const titulo = TITULO.find(([r]) => r.test(path))?.[1];
   const tela = path === "/" ? "mapa" : path.split("/")[1];
   const semAbas = tela === "recarga" || tela === "ler";
-  const on = (t: string) => (tela === t ? "on" : "");
+  const on = (t: string) => ((indo ?? tela) === t ? "on" : "");
+  const aba = (href: string, t: string, ic: string, rotulo: string, extra?: string) => (
+    <Link href={href} className={on(t) || (extra ? on(extra) : "")} onClick={() => tela !== t && setIndo(t)}>
+      <span className="tab-ic"><Ic n={ic} /></span>{rotulo}
+    </Link>
+  );
 
   return (
     <div className="app-stage">
@@ -66,14 +74,14 @@ export function AppShell({ children, nome, recargaInicial, naoLidosInicial, tema
         {recarga && !semAbas && <RecargaFlutuante key={recarga} id={recarga} />}
         {!semAbas && (
           <div className="tabbar">
-            <Link href="/" className={on("mapa") || on("estacao")}><Ic n="map" />Mapa</Link>
-            <Link href="/carteira" className={on("carteira")}><Ic n="wallet" />Carteira</Link>
+            {aba("/", "mapa", "map", "Mapa", "estacao")}
+            {aba("/carteira", "carteira", "wallet", "Carteira")}
             <Link href={recarga ? `/recarga/${recarga}` : "/ler"} className="scan">
               <span className="ring"><Ic n={recarga ? "bolt" : "qr"} /></span>
               {recarga ? "Recarga" : "Ler QR"}
             </Link>
-            <Link href="/historico" className={on("historico") || on("recibo")}><Ic n="list" />Recargas</Link>
-            <Link href="/perfil" className={on("perfil") || on("ajuda")}><Ic n="user" />Perfil</Link>
+            {aba("/historico", "historico", "list", "Recargas", "recibo")}
+            {aba("/perfil", "perfil", "user", "Perfil", "ajuda")}
           </div>
         )}
       </div>

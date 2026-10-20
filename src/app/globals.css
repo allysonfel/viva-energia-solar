@@ -532,3 +532,19 @@ tbody tr td{transition:background-color .15s}
 .leaflet-control-attribution.atrib-fechada *{display:none}
 .leaflet-control-attribution.atrib-fechada::before{content:"i";font:700 12px/1 var(--body)}
 
+/* Toque: sem o quadrado cinza do Safari; no lugar, a aba afunda e ganha
+   uma pílula atrás do ícone (marcada na hora do toque). */
+html{-webkit-tap-highlight-color:transparent}
+.tabbar a,.tabbar button{-webkit-touch-callout:none;user-select:none}
+.tab-ic{width:46px;height:28px;border-radius:99px;display:grid;place-items:center;transition:background-color .2s var(--ease-suave),transform .15s var(--ease-suave)}
+.tabbar a.on .tab-ic{background:var(--g50)}
+.tabbar a:active .tab-ic{transform:scale(.88);background:var(--g50)}
+.app[data-tema="escuro"] .tabbar a.on .tab-ic,.app[data-tema="escuro"] .tabbar a:active .tab-ic{background:#183A2C}
+@media (prefers-color-scheme:dark){.app:not([data-tema="claro"]) .tabbar a.on .tab-ic,.app:not([data-tema="claro"]) .tabbar a:active .tab-ic{background:#183A2C}}
+
+/* Esqueleto enquanto a tela carrega: só aparece se demorar (atraso de 120 ms). */
+.esqueleto{padding:16px;display:grid;gap:12px;animation:fade .2s var(--ease-suave) .12s both}
+.esqueleto i{display:block;border-radius:16px;background:var(--line);opacity:.55;animation:pulsa 1.2s ease-in-out infinite}
+@keyframes pulsa{50%{opacity:.3}}
+@media (prefers-reduced-motion:reduce){.esqueleto,.esqueleto i{animation:none}}
+
