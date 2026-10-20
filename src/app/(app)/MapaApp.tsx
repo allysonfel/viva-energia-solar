@@ -71,6 +71,27 @@ export function MapaApp({ inicial, tiles, atribuicao, meusConectores }: { inicia
       .sort((a, b) => (a.km ?? 0) - (b.km ?? 0));
   }, [estacoes, filtro, busca, eu]);
 
+  // Cartão "Estação mais próxima" (pedido do cliente, igual ao app de referência):
+  // as 2 com conector livre mais perto de onde o motorista está, sem filtro nem
+  // busca. Sem localização não aparece; fechado, some até fechar o app.
+  const [fechouProximas, setFechouProximas] = useState(false);
+  useEffect(() => {
+    try { if (sessionStorage.getItem("viva_proximas_fechado")) setFechouProximas(true); } catch {}
+  }, []);
+  const fecharProximas = () => {
+    setFechouProximas(true);
+    try { sessionStorage.setItem("viva_proximas_fechado", "1"); } catch {}
+  };
+  const proximas = useMemo(() => {
+    if (!eu) return [];
+    return estacoes
+      .filter(comCoord)
+      .filter((e) => e.conectores.some((c) => c.situacao === "disponivel"))
+      .map((e) => ({ ...e, km: distKm(eu, e) }))
+      .sort((a, b) => a.km - b.km)
+      .slice(0, 2);
+  }, [estacoes, eu]);
+
   // Cria o mapa uma vez.
   useEffect(() => {
     let vivo = true;
@@ -137,6 +158,24 @@ export function MapaApp({ inicial, tiles, atribuicao, meusConectores }: { inicia
             <button key={k} className={`chip ${filtro === k ? "on" : ""}`} onClick={() => setFiltro(k)}>{t}</button>
           ))}
         </div>
+        {proximas.length > 0 && !fechouProximas && (
+          <div className="proximas">
+            <div className="proximas-h">
+              <span className="row" style={{ gap: 6 }}><Ic n="nav" />{proximas.length === 1 ? "Estação mais próxima" : "Estações mais próximas"}</span>
+              <button type="button" className="proximas-x" onClick={fecharProximas} aria-label="Fechar"><Ic n="close" /></button>
+            </div>
+            {proximas.map((e) => (
+              <Link key={e.codigo} className="proximas-item" href={`/estacao/${encodeURIComponent(e.codigo)}`}>
+                <span className="li-ic"><Ic n="bolt" /><i className="dot st-disponivel" /></span>
+                <span className="li-main">
+                  <b>{e.nome}</b>
+                  <small><i className="dot st-disponivel" />Disponível</small>
+                </span>
+                <span className="proximas-km mono">{distTxt(e.km)}</span>
+              </Link>
+            ))}
+          </div>
+        )}
       </div>
       <div className="near">
         {lista.length ? (

@@ -434,6 +434,21 @@ textarea.input{height:auto;min-height:80px;padding:10px 14px;resize:vertical}
 .barra-recarga{height:10px;border-radius:99px;background:#E6EEF9;overflow:hidden}
 .barra-recarga i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,#2F6FE0,#0B3B8C);transition:width .5s}
 .app:has(.map-wrap) .fab-recarga{bottom:300px}
+/* Cartão "Estação mais próxima" no topo do mapa (pedido do cliente) */
+.proximas{margin-top:10px;background:#fff;border-radius:16px;box-shadow:0 8px 24px rgba(6,42,30,.14);padding:4px 14px 6px;animation:fade .2s}
+.proximas-h{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--line);color:var(--g600);font-weight:700;font-size:13px}
+.proximas-h svg{width:16px;height:16px}
+.proximas-x{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;color:var(--muted);margin-right:-6px}
+.proximas-x svg{width:18px;height:18px}
+.proximas-item{display:flex;align-items:center;gap:12px;padding:10px 0;text-decoration:none;color:inherit;transition:opacity .15s}
+.proximas-item+.proximas-item{border-top:1px solid var(--line)}
+.proximas-item:active{opacity:.6}
+.proximas-item .li-ic{position:relative}
+.proximas-item .li-ic>.dot{position:absolute;right:-2px;bottom:-2px;width:11px;height:11px;border:2px solid #fff}
+.proximas-item .li-main b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.proximas-item .li-main small{display:flex;align-items:center;gap:6px;color:var(--g600);font-weight:700}
+.proximas-item .li-main small .dot{width:7px;height:7px}
+.proximas-km{color:var(--muted);font-size:13px;flex:none;align-self:flex-start;margin-top:2px}
 
 /* ================= ANIMAÇÕES: só no toque, curtas e sutis ================= */
 :root{--ease-suave:cubic-bezier(.25,.1,.25,1)}
