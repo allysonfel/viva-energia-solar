@@ -73,15 +73,16 @@ export function MapaApp({ inicial, tiles, atribuicao, meusConectores }: { inicia
   // Cartão "Estação mais próxima" (pedido do cliente, igual ao app de referência):
   // as 2 com conector livre mais perto de onde o motorista está, sem filtro nem
   // busca. Sem localização, as mais perto do centro do mapa (sem distância);
-  // fechado, some até fechar o app.
+  // minimizado, fica só o título (e assim até fechar o app).
   const [centro, setCentro] = useState<{ lat: number; lng: number } | null>(null);
-  const [fechouProximas, setFechouProximas] = useState(false);
+  const [minProximas, setMinProximas] = useState(false);
   useEffect(() => {
-    try { if (sessionStorage.getItem("viva_proximas_fechado")) setFechouProximas(true); } catch {}
+    try { if (sessionStorage.getItem("viva_proximas_min")) setMinProximas(true); } catch {}
   }, []);
-  const fecharProximas = () => {
-    setFechouProximas(true);
-    try { sessionStorage.setItem("viva_proximas_fechado", "1"); } catch {}
+  const alternarProximas = () => {
+    const min = !minProximas;
+    setMinProximas(min);
+    try { if (min) sessionStorage.setItem("viva_proximas_min", "1"); else sessionStorage.removeItem("viva_proximas_min"); } catch {}
   };
   const proximas = useMemo(() => {
     const de = eu ?? centro;
@@ -171,13 +172,13 @@ export function MapaApp({ inicial, tiles, atribuicao, meusConectores }: { inicia
             <button key={k} className={`chip ${filtro === k ? "on" : ""}`} onClick={() => setFiltro(k)}>{t}</button>
           ))}
         </div>
-        {proximas.length > 0 && !fechouProximas && (
-          <div className="proximas">
-            <div className="proximas-h">
+        {proximas.length > 0 && (
+          <div className={`proximas ${minProximas ? "min" : ""}`}>
+            <div className="proximas-h" onClick={alternarProximas}>
               <span className="row" style={{ gap: 6 }}><Ic n="nav" />{proximas.length === 1 ? "Estação mais próxima" : "Estações mais próximas"}</span>
-              <button type="button" className="proximas-x" onClick={fecharProximas} aria-label="Fechar"><Ic n="close" /></button>
+              <button type="button" className="proximas-x" onClick={(ev) => { ev.stopPropagation(); alternarProximas(); }} aria-label={minProximas ? "Mostrar" : "Minimizar"} aria-expanded={!minProximas}><Ic n="right" /></button>
             </div>
-            {proximas.map((e) => (
+            {!minProximas && proximas.map((e) => (
               <Link key={e.codigo} className="proximas-item" href={`/estacao/${encodeURIComponent(e.codigo)}`}>
                 <span className="li-ic"><Ic n="bolt" /></span>
                 <span className="li-main">

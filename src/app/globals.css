@@ -414,7 +414,7 @@ textarea.input{height:auto;min-height:80px;padding:10px 14px;resize:vertical}
 @media (min-width:760px){.app{margin-top:18px;height:calc(100% - 18px)}}
 .tabbar a{display:flex;flex-direction:column;align-items:center;gap:3px;font-size:11px;font-weight:700;color:var(--faint);padding:6px 0;text-decoration:none}
 .tabbar a.on{color:var(--g800)}
-.tabbar a.scan{color:var(--g900)}
+.tabbar a.scan{color:var(--g600);font-weight:800}
 .app-head .icon-btn{text-decoration:none;color:inherit}
 /* mapa real (Leaflet) com os pinos do protótipo */
 .map-wrap .mapa{position:absolute;inset:0;z-index:1;background:#DCE8E0}
@@ -450,7 +450,11 @@ textarea.input{height:auto;min-height:80px;padding:10px 14px;resize:vertical}
 .proximas-h{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--line);color:var(--g600);font-weight:700;font-size:13px}
 .proximas-h svg{width:16px;height:16px}
 .proximas-x{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;color:var(--muted);margin-right:-6px}
-.proximas-x svg{width:18px;height:18px}
+.proximas-x svg{width:18px;height:18px;transform:rotate(-90deg);transition:transform .2s var(--ease-suave)}
+.proximas-h{cursor:pointer}
+.proximas.min{padding-bottom:4px}
+.proximas.min .proximas-h{border-bottom:0}
+.proximas.min .proximas-x svg{transform:rotate(90deg)}
 .proximas-item{display:flex;align-items:center;gap:12px;padding:10px 0;text-decoration:none;color:inherit;transition:opacity .15s}
 .proximas-item+.proximas-item{border-top:1px solid var(--line)}
 .proximas-item:active{opacity:.6}

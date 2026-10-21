@@ -13,7 +13,7 @@ export default async function Ajuda() {
     ["Como inicio uma recarga?", "Toque em Ler QR, aponte para o código no carregador e confirme. O cabo precisa estar conectado ao carro."],
     ["Preciso de saldo?", `Sim. A recarga é paga pela carteira do app: é preciso ter pelo menos ${brl(s.saldoMinimoCentavos)} para iniciar. Adicione crédito por Pix ou cartão.`],
     ["Como o valor é calculado?", "Você paga só a energia entregue ao carro (kWh) pela tarifa da estação. O valor aparece ao vivo durante a recarga."],
-    ["Cheguei e a estação está ocupada", "O mapa mostra no topo as 2 estações livres mais perto de você (com a localização liberada) ou da região que está na tela. Na tela de cada estação também aparecem as livres mais próximas dela."],
+    ["Cheguei e a estação está ocupada", "O mapa mostra no topo as 2 estações livres mais perto de você (com a localização liberada) ou da região que está na tela; a seta do cartão minimiza e mostra de novo. Na tela de cada estação também aparecem as livres mais próximas dela."],
     ["A recarga parou sozinha", "Isso acontece quando a bateria chega ao limite do carro, quando o cabo é desconectado ou quando o saldo acaba. O valor cobrado é só da energia entregue."],
     ["Posso pedir o saldo de volta?", "Sim, sem taxa. Peça pelo atendimento: devolvemos por Pix para uma chave no CPF do titular, em até 7 dias úteis. Crédito dos últimos 7 dias ainda não usado volta por inteiro. Detalhes na Política de reembolso, abaixo."],
     ["Como mudo meus dados ou a foto?", "Em Perfil: toque na foto para trocar e use Meus dados para nome, e-mail e celular. Para trocar o e-mail, confirme com a sua senha. O CPF só muda pelo atendimento."],
