@@ -12,6 +12,7 @@ const IC: Record<string, string> = {
   close: "<path d=\"M6 6l12 12M18 6 6 18\"/>",
   grid: "<rect x=\"4\" y=\"4\" width=\"7\" height=\"7\" rx=\"1\"/><rect x=\"13\" y=\"4\" width=\"7\" height=\"7\" rx=\"1\"/><rect x=\"4\" y=\"13\" width=\"7\" height=\"7\" rx=\"1\"/><rect x=\"13\" y=\"13\" width=\"7\" height=\"7\" rx=\"1\"/>",
   plug: "<path d=\"M9 3v5M15 3v5M6 8h12v3a6 6 0 0 1-12 0V8zM12 17v4\"/>",
+  menu: "<path d=\"M4 7h16M4 12h16M4 17h16\"/>",
   list: "<path d=\"M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01\"/>",
   clock: "<circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M12 7v5l3 2\"/>",
   camera: "<path d=\"M4 8h3l2-3h6l2 3h3v11H4z\"/><circle cx=\"12\" cy=\"13\" r=\"3.5\"/>",

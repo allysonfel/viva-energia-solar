@@ -54,10 +54,11 @@ export default async function VisaoGeral({ searchParams }: { searchParams: Promi
     <>
       <AutoAtualizar ms={10_000} />
       {erro === "permissao" && <div className="aviso erro">Seu perfil não tem acesso a essa tela.</div>}
-      <form action={alternarDadosReais} style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 10, marginBottom: 16 }}>
-        <span className="muted" style={{ fontSize: 13 }}>{soReais ? "Mostrando só dados reais (sem estações simuladas)" : "Mostrando dados de demonstração"}</span>
-        <button type="submit" className={soReais ? "btn btn-ghost btn-sm" : "btn btn-dark btn-sm"} aria-pressed={!soReais}>
-          Dados de demonstração: {soReais ? "desligado" : "ligado"}
+      <form action={alternarDadosReais} className="demo-chave">
+        <span className="muted">{soReais ? "Mostrando só dados reais (sem estações simuladas)" : "Mostrando dados de demonstração"}</span>
+        <button type="submit" className="demo-btn" aria-pressed={!soReais}>
+          Dados de demonstração
+          <i className={`toggle ${soReais ? "" : "on"}`} aria-hidden />
         </button>
       </form>
       <div className="kpis">

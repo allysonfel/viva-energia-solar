@@ -69,6 +69,10 @@ export function Shell({
     document.cookie = `viva_painel_tema=${novo}; path=/painel; max-age=31536000; samesite=lax`;
   };
   const path = usePathname();
+  // Menu do celular: fechado, abre para baixo pelo botão; fecha ao trocar de tela.
+  const [menu, setMenu] = useState(false);
+  const [pathMenu, setPathMenu] = useState(path);
+  if (pathMenu !== path) { setPathMenu(path); setMenu(false); }
   const pode = (n: Item) => (!n.perfis || n.perfis.includes(user.perfil)) && (!n.aba || user.abas.includes(n.aba)) && (n.href !== "/painel/simulador" || simulador);
   const itens = NAV.filter((n) => typeof n === "string" || pode(n));
   // Grupo sem itens visíveis não aparece.
@@ -117,9 +121,10 @@ export function Shell({
             <button type="button" className="icon-btn keep" onClick={alternarTema} title={tema === "escuro" ? "Modo claro" : "Modo escuro"} aria-label={tema === "escuro" ? "Modo claro" : "Modo escuro"}><Ic n={tema === "escuro" ? "sun" : "moon"} /></button>
             <Sino vapid={vapid} />
             <BotaoSair acao={sair} className="icon-btn keep" title="Sair"><Ic n="logout" /></BotaoSair>
+            <button type="button" className="icon-btn keep btn-menu" onClick={() => setMenu(!menu)} aria-label={menu ? "Fechar menu" : "Abrir menu"} aria-expanded={menu}><Ic n={menu ? "close" : "menu"} /></button>
           </div>
         </div>
-        <div className="mob-nav">
+        <div className={`mob-nav ${menu ? "aberto" : ""}`}>
           {visiveis.filter((n): n is Item => typeof n !== "string").map((n) => (
             <Link key={n.href} href={n.href} className={on(n.href) ? "on" : ""}>
               <Ic n={n.ic} />
@@ -127,6 +132,7 @@ export function Shell({
             </Link>
           ))}
         </div>
+        {menu && <div className="mob-fundo" onClick={() => setMenu(false)} />}
         <h1 className="mob-titulo">{titulo}</h1>
         <div className="content">{children}</div>
       </div>
