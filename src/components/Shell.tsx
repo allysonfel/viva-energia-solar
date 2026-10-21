@@ -103,17 +103,13 @@ export function Shell({
           </div>
         </Link>
       </aside>
-      <div className="mob-nav">
-        {visiveis.filter((n): n is Item => typeof n !== "string").map((n) => (
-          <Link key={n.href} href={n.href} className={on(n.href) ? "on" : ""}>
-            <Ic n={n.ic} />
-            {n.nome}
-          </Link>
-        ))}
-      </div>
       <div className="main">
         <div className="topbar">
-          <div>
+          <Link href="/painel" className="top-logo" aria-label={empresa}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logo-viva-branco.png" alt="" />
+          </Link>
+          <div className="top-titulo">
             <div className="crumb">{empresa} · Gestão de eletropostos</div>
             <h1>{titulo}</h1>
           </div>
@@ -123,6 +119,15 @@ export function Shell({
             <BotaoSair acao={sair} className="icon-btn keep" title="Sair"><Ic n="logout" /></BotaoSair>
           </div>
         </div>
+        <div className="mob-nav">
+          {visiveis.filter((n): n is Item => typeof n !== "string").map((n) => (
+            <Link key={n.href} href={n.href} className={on(n.href) ? "on" : ""}>
+              <Ic n={n.ic} />
+              {n.nome}
+            </Link>
+          ))}
+        </div>
+        <h1 className="mob-titulo">{titulo}</h1>
         <div className="content">{children}</div>
       </div>
     </div>
