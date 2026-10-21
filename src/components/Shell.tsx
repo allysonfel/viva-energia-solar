@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useState } from "react";
 import { Ic } from "./Ic";
 import { Sino } from "./Sino";
 import { BotaoSair } from "./BotaoSair";
@@ -51,6 +52,7 @@ export function Shell({
   simulador,
   sair,
   vapid,
+  tema: temaInicial,
 }: {
   children: React.ReactNode;
   user: { nome: string; perfil: Perfil; parceiro: string | null; abas: string[] };
@@ -58,7 +60,14 @@ export function Shell({
   simulador: boolean;
   sair: () => Promise<void>;
   vapid: string | null;
+  tema: "claro" | "escuro";
 }) {
+  const [tema, setTema] = useState(temaInicial);
+  const alternarTema = () => {
+    const novo = tema === "escuro" ? "claro" : "escuro";
+    setTema(novo);
+    document.cookie = `viva_painel_tema=${novo}; path=/painel; max-age=31536000; samesite=lax`;
+  };
   const path = usePathname();
   const pode = (n: Item) => (!n.perfis || n.perfis.includes(user.perfil)) && (!n.aba || user.abas.includes(n.aba)) && (n.href !== "/painel/simulador" || simulador);
   const itens = NAV.filter((n) => typeof n === "string" || pode(n));
@@ -68,11 +77,11 @@ export function Shell({
   const on = (h: string) => (h === "/painel" ? path === h : path === h || path.startsWith(h + "/"));
 
   return (
-    <div className="adm">
+    <div className="adm" data-tema={tema}>
       <aside className="side">
         <div className="brand">
-          <span className="brand-mark"><Ic n="bolt" /></span>
-          {empresa}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img className="brand-logo" src="/logo-viva-branco.png" alt={empresa} />
         </div>
         <nav>
           {visiveis.map((n) =>
@@ -109,6 +118,7 @@ export function Shell({
             <h1>{titulo}</h1>
           </div>
           <div className="acts">
+            <button type="button" className="icon-btn keep" onClick={alternarTema} title={tema === "escuro" ? "Modo claro" : "Modo escuro"} aria-label={tema === "escuro" ? "Modo claro" : "Modo escuro"}><Ic n={tema === "escuro" ? "sun" : "moon"} /></button>
             <Sino vapid={vapid} />
             <BotaoSair acao={sair} className="icon-btn keep" title="Sair"><Ic n="logout" /></BotaoSair>
           </div>

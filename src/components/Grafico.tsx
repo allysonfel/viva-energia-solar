@@ -15,17 +15,17 @@ export function GraficoReceitaCusto({ serie, soReceita = false }: { serie: { rot
     <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img" aria-label="Receita e custo de energia por período">
       {[0, 1, 2, 3, 4].map((i) => (
         <g key={i}>
-          <line x1={pad} x2={W - 8} y1={y(passo * i)} y2={y(passo * i)} stroke="#EDF1EE" />
-          <text x={pad - 6} y={y(passo * i) + 4} fontSize="10" textAnchor="end" fill="#8A9A92" fontFamily="var(--mono)">{rotulo(passo * i)}</text>
+          <line x1={pad} x2={W - 8} y1={y(passo * i)} y2={y(passo * i)} style={{ stroke: "var(--line)" }} />
+          <text x={pad - 6} y={y(passo * i) + 4} fontSize="10" textAnchor="end" style={{ fill: "var(--faint)" }} fontFamily="var(--mono)">{rotulo(passo * i)}</text>
         </g>
       ))}
       {serie.map((d, i) => {
         const x = pad + i * bw + bw * 0.18, w = bw * 0.32;
         return (
           <g key={d.rotulo}>
-            <rect x={x} y={y(d.receita)} width={w} height={H - pad - y(d.receita)} rx="3" fill="#177148"><title>{`${d.rotulo} · receita R$ ${(d.receita / 100).toFixed(2).replace(".", ",")}`}</title></rect>
+            <rect x={x} y={y(d.receita)} width={w} height={H - pad - y(d.receita)} rx="3" style={{ fill: "var(--g600)" }}><title>{`${d.rotulo} · receita R$ ${(d.receita / 100).toFixed(2).replace(".", ",")}`}</title></rect>
             {!soReceita && <rect x={x + w + 2} y={y(d.custo)} width={w} height={H - pad - y(d.custo)} rx="3" fill="#C4F53A"><title>{`${d.rotulo} · custo de energia R$ ${(d.custo / 100).toFixed(2).replace(".", ",")}`}</title></rect>}
-            {i % pular === 0 && <text x={x + w} y={H - 10} fontSize="10" textAnchor="middle" fill="#8A9A92" fontFamily="var(--mono)">{d.rotulo}</text>}
+            {i % pular === 0 && <text x={x + w} y={H - 10} fontSize="10" textAnchor="middle" style={{ fill: "var(--faint)" }} fontFamily="var(--mono)">{d.rotulo}</text>}
           </g>
         );
       })}

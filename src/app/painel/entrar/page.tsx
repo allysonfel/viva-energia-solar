@@ -7,7 +7,6 @@ import { clientIp } from "@/lib/request";
 import { isBlocked, registerFailure, clearFailures, LIMITE_EMAIL, LIMITE_IP } from "@/lib/limits";
 import { getSettings } from "@/lib/settings";
 import { kwh, num } from "@/lib/format";
-import { Ic } from "@/components/Ic";
 
 async function login(fd: FormData) {
   "use server";
@@ -51,8 +50,8 @@ export default async function Entrar({ searchParams }: { searchParams: Promise<{
           </g>
         </svg>
         <div className="brand">
-          <span className="brand-mark"><Ic n="bolt" /></span>
-          {s.empresa}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img className="brand-logo" src="/logo-viva-branco.png" alt={s.empresa} />
         </div>
         <div>
           <h1>Energia limpa na rua, controle total na mão.</h1>

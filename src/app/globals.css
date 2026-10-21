@@ -52,6 +52,8 @@ h1,h2,h3{font-family:var(--display);font-stretch:112%;letter-spacing:-.01em;line
 .brand{display:flex;align-items:center;gap:10px;font-family:var(--display);font-stretch:118%;font-weight:800;font-size:19px;letter-spacing:-.02em}
 .brand-mark{width:34px;height:34px;border-radius:10px;background:var(--volt);color:var(--volt-ink);display:grid;place-items:center}
 .brand-mark svg{width:20px;height:20px;stroke-width:2.2}
+.brand-logo{display:block;height:46px;width:auto}
+.side .brand-logo{height:40px}
 .auth-hero h1{font-size:46px;font-weight:800;max-width:460px;position:relative}
 .auth-hero p{color:#A9C4B6;max-width:400px;margin-top:14px;font-size:15px;position:relative}
 .auth-stats{display:flex;gap:36px;position:relative}
@@ -70,6 +72,8 @@ h1,h2,h3{font-family:var(--display);font-stretch:112%;letter-spacing:-.01em;line
   .auth{grid-template-columns:1fr;grid-template-rows:auto 1fr}
   .auth-hero{padding:56px 22px 24px}
   .auth-hero h1{font-size:30px}
+  .auth-hero .brand{margin-bottom:18px}
+  .auth-hero .brand-logo{height:40px}
   .auth-hero p,.auth-stats{display:none}
   .auth-form{align-items:flex-start;padding:26px 22px}
 }
@@ -514,15 +518,27 @@ tbody tr td{transition:background-color .15s}
     --escuro-btn:#1D4A38; --escuro-neutro:#1A2924; --escuro-info:#132538; --escuro-ambar:#F2B65A; --escuro-on:#8ED8B1;
   }
 }
+/* Painel da operação no escuro (botão sol/lua; começa claro). */
+.adm[data-tema="escuro"]{
+  color-scheme:dark;background:var(--bg);
+  --bg:#0A1310; --card:#121D19; --line:#24352E; --ink:#E6EEE9; --muted:#9AABA3; --faint:#6F8079;
+  --g50:#11241B; --g100:#173223; --g700:#8ED8B1; --g600:#6BC79A; --g500:#2E9E6A;
+  --amber-bg:#33260F; --red-bg:#361719; --red:#F0676D; --blue:#6AA8F0;
+  --escuro-btn:#1D4A38; --escuro-neutro:#1A2924; --escuro-info:#132538; --escuro-ambar:#F2B65A; --escuro-on:#8ED8B1;
+}
+.adm[data-tema="escuro"] th{background:#16231E}
+.adm[data-tema="escuro"] tbody tr:hover td{background:#15211C}
+.adm[data-tema="escuro"] .ck:not(.on){border-color:#3A4D45}
+.adm[data-tema="escuro"] .kpi.hero{background:#0F3A2A;border-color:#1D4A38}
 /* Ajustes que só valem quando os tokens escuros estão ativos (--escuro-btn definido). */
-.app{color:var(--ink)}
-.app .tabbar a.on,.app .tabbar button.on,.app .amounts button.on{color:var(--escuro-on,var(--g800))}
-.app .btn-dark,.app .chip.on{background:var(--escuro-btn,var(--g900));border-color:var(--escuro-btn,var(--g900))}
-.app .b-neutral,.app .b-indisponivel,.app .bar-mini{background:var(--escuro-neutro,#EEF1EF)}
-.app .b-blue,.app .aviso.info{background:var(--escuro-info,#E6F0FB)}
-.app .b-em_uso,.app .aviso.alerta,.app .pin.em_uso .bubble{color:var(--escuro-ambar,#9A5E0B)}
-.app .toggle{background:var(--escuro-neutro,#CCD6D0)}
-.app .barra-recarga{background:var(--escuro-neutro,#E6EEF9)}
+:is(.app,.adm){color:var(--ink)}
+:is(.app,.adm) .tabbar a.on,:is(.app,.adm) .tabbar button.on,:is(.app,.adm) .amounts button.on{color:var(--escuro-on,var(--g800))}
+:is(.app,.adm) .btn-dark,:is(.app,.adm) .chip.on{background:var(--escuro-btn,var(--g900));border-color:var(--escuro-btn,var(--g900))}
+:is(.app,.adm) .b-neutral,:is(.app,.adm) .b-indisponivel,:is(.app,.adm) .bar-mini{background:var(--escuro-neutro,#EEF1EF)}
+:is(.app,.adm) .b-blue,:is(.app,.adm) .aviso.info{background:var(--escuro-info,#E6F0FB)}
+:is(.app,.adm) .b-em_uso,:is(.app,.adm) .aviso.alerta,:is(.app,.adm) .pin.em_uso .bubble{color:var(--escuro-ambar,#9A5E0B)}
+:is(.app,.adm) .toggle{background:var(--escuro-neutro,#CCD6D0)}
+:is(.app,.adm) .barra-recarga{background:var(--escuro-neutro,#E6EEF9)}
 .app[data-tema="escuro"] .leaflet-tile-pane{filter:invert(1) hue-rotate(180deg) brightness(.92) contrast(.88)}
 .app[data-tema="escuro"] .map-wrap .mapa{background:#17211D}
 @media (prefers-color-scheme:dark){

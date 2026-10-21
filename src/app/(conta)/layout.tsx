@@ -1,7 +1,6 @@
 import { sql } from "@/lib/db";
 import { getSettings } from "@/lib/settings";
 import { kwh, num } from "@/lib/format";
-import { Ic } from "@/components/Ic";
 
 // Gerado a cada acesso: mostra números do banco (no build não há banco).
 export const dynamic = "force-dynamic";
@@ -24,8 +23,8 @@ export default async function ContaLayout({ children }: { children: React.ReactN
           </g>
         </svg>
         <div className="brand">
-          <span className="brand-mark"><Ic n="bolt" /></span>
-          {s.empresa}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img className="brand-logo" src="/logo-viva-branco.png" alt={s.empresa} />
         </div>
         <div>
           <h1>Energia limpa na rua, controle total na mão.</h1>
