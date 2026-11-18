@@ -201,8 +201,20 @@ export default async function Estacao({ params, searchParams }: {
 
                 {enderecoChave ? (
                   <>
-                    <p className="muted" style={{ fontSize: 12.5, marginBottom: 8 }}>Digite este endereço no carregador, no campo do endereço do servidor (OCPP 1.6). É só isso: ele já leva a chave de segurança.</p>
+                    <p className="muted" style={{ fontSize: 12.5, marginBottom: 8 }}>Este é o endereço do carregador. Ele já leva a chave de segurança: não precisa de usuário nem senha.</p>
                     <CopiarTexto texto={enderecoChave} rotulo="Copiar endereço do carregador" />
+                    <div className="passos-ocpp">
+                      <b>Como configurar no carregador</b>
+                      <ol>
+                        <li>Copie o endereço acima e mande para quem vai estar na frente do carregador (por WhatsApp, por exemplo).</li>
+                        <li>No carregador, abra a tela de configuração OCPP. Em geral fica num ícone de engrenagem ou num menu chamado OCPP, Rede ou Servidor.</li>
+                        <li>Escolha o protocolo <b>OCPP 1.6</b> (ou 1.6J).</li>
+                        <li>No campo do endereço do servidor, apague o que estiver lá e digite o endereço inteiro, exatamente igual: tudo minúsculo e sem espaço. Conforme o modelo, o campo se chama IPendereço, Endereço do servidor, Server URL, Central System URL ou OCPP URL.</li>
+                        <li>Toque em Salvar. Alguns carregadores reiniciam sozinhos.</li>
+                        <li>Em 1 ou 2 minutos, atualize esta página: aqui em cima deve aparecer <b>Carregador conectado</b>.</li>
+                      </ol>
+                      <small className="muted">Se aparecer “recusado”, o motivo vem escrito aqui em cima. O mais comum é uma letra trocada no endereço: confira letra por letra. O número do carregador que aparece na tela dele (ID, número da pilha) não precisa mudar.</small>
+                    </div>
                     {q.chave && <p className="muted" style={{ fontSize: 12, marginTop: 6 }}>Endereço novo gerado: o anterior deixou de valer. Atualize no carregador.</p>}
                     <details style={{ marginTop: 10 }}>
                       <summary className="muted" style={{ fontSize: 12.5, cursor: "pointer" }}>Gerar outro endereço (se a chave vazou)</summary>
