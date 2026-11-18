@@ -5,6 +5,8 @@ import { requireAba, parceiroDoEscopo, podeOperar } from "@/lib/session";
 import { sql } from "@/lib/db";
 import { listarEstacoes } from "@/lib/estacoes";
 import { lerSegredo } from "@/lib/segredo";
+import { decifrarChave } from "@/lib/ocpp/chave";
+import { CopiarTexto } from "./CopiarTexto";
 import { brl, kwh, kw, haQuanto, quando, duracao, horaBr } from "@/lib/format";
 import { STATUS_CONECTOR_NOME, TIPOS_CONECTOR } from "@/lib/ocpp/tipos";
 import { Badge, BadgeRecarga } from "@/components/Badge";
@@ -37,7 +39,7 @@ async function urlOcpp(codigo: string) {
 
 export default async function Estacao({ params, searchParams }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ ok?: string; erro?: string; criada?: string; senha?: string }>;
+  searchParams: Promise<{ ok?: string; erro?: string; criada?: string; senha?: string; chave?: string }>;
 }) {
   const u = await requireAba("estacoes");
   const id = Number((await params).id);
@@ -62,8 +64,12 @@ export default async function Estacao({ params, searchParams }: {
   const [daEstacao, todasTarifas] = await Promise.all([tarifasDaEstacao(id), admin ? listarTarifas() : []]);
   const tarifaAgora = faixaNoHorario(daEstacao);
   const senha = admin && !e.simulada ? await lerSegredo("ocpp", id) : "";
-  const chaveNova = admin && !e.simulada ? await lerSegredo("ocpp-chave", id) : "";
-  const [{ tem_chave: temChave }] = await sql<{ tem_chave: boolean }[]>`SELECT (ocpp_chave_hash IS NOT NULL) AS tem_chave FROM estacoes WHERE id = ${id}`;
+  const [ocpp] = await sql<{ cifrada: string | null; recusa_em: Date | null; recusa_motivo: string | null }[]>`
+    SELECT ocpp_chave_cifrada AS cifrada, ocpp_recusa_em AS recusa_em, ocpp_recusa_motivo AS recusa_motivo FROM estacoes WHERE id = ${id}`;
+  const chave = admin && !e.simulada ? decifrarChave(ocpp.cifrada) : null;
+  const enderecoChave = chave ? (await urlOcpp(e.codigo)).replace(/\/ocpp\/.*$/, `/ocpp/k-${chave}/${e.codigo}`) : null;
+  // Recusa só conta se for depois do último contato bom (senão já resolveu).
+  const recusa = ocpp.recusa_em && ocpp.recusa_motivo && (!e.ultimo_contato || ocpp.recusa_em > e.ultimo_contato) ? { em: ocpp.recusa_em, motivo: ocpp.recusa_motivo } : null;
   const maxKw = Math.max(7, Math.round(e.conectores.reduce((s, c) => s + c.potencia_w, 0) / 1000));
   const limiteKw = e.limite_w ? Math.round(e.limite_w / 1000) : maxKw;
   const real = (c: number) => (c / 100).toFixed(2).replace(".", ",");
@@ -80,7 +86,7 @@ export default async function Estacao({ params, searchParams }: {
       </div>
       {q.ok && <div className="aviso ok">{OK[q.ok] ?? "Salvo."}</div>}
       {q.erro && <div className="aviso erro">{ERROS[q.erro] ?? q.erro}</div>}
-      {q.criada && <div className="aviso ok">Estação cadastrada. {e.simulada ? "O carregador simulado já está ligando." : "Configure o carregador com o endereço e a senha abaixo."}</div>}
+      {q.criada && <div className="aviso ok">Estação cadastrada. {e.simulada ? "O carregador simulado já está ligando." : "Digite no carregador o endereço que aparece em Conexão do carregador."}</div>}
 
       <div className="grid2">
         <div>
@@ -180,53 +186,69 @@ export default async function Estacao({ params, searchParams }: {
 
           {admin && !e.simulada && (
             <div className="panel" style={{ marginBottom: 16 }}>
-              <div className="panel-h"><h3>Conexão OCPP</h3></div>
+              <div className="panel-h"><h3>Conexão do carregador</h3></div>
               <div className="panel-b">
-                <p className="muted" style={{ fontSize: 12.5, marginBottom: 8 }}>Configure no carregador (OCPP 1.6J, perfil de segurança 1: usuário e senha):</p>
-                <div className="ocpp-url">{await urlOcpp(e.codigo)}</div>
-                <div className="kv" style={{ marginTop: 10 }}>
-                  <div><small>Usuário</small><b className="mono">{e.codigo}</b></div>
-                </div>
-                {senha ? (
+                {/* Situação: o próprio admin vê se o carregador entrou ou por que foi recusado. */}
+                {e.conectada ? (
+                  <div className="aviso ok" style={{ marginBottom: 12 }}>Carregador conectado{det.fabricante ? ` (${det.fabricante}${det.modelo ? ` ${det.modelo}` : ""})` : ""}.</div>
+                ) : recusa ? (
+                  <div className="aviso erro" style={{ marginBottom: 12 }}>
+                    O carregador tentou conectar há {haQuanto(recusa.em)} e foi recusado: <b>{recusa.motivo}</b>. Confira se o endereço abaixo foi digitado exatamente igual.
+                  </div>
+                ) : !e.ultimo_contato ? (
+                  <div className="aviso" style={{ marginBottom: 12 }}>Aguardando a primeira conexão do carregador.</div>
+                ) : null}
+
+                {enderecoChave ? (
                   <>
-                    <div className="box-title" style={{ marginTop: 12 }}>Senha (aparece só agora)</div>
-                    <div className="segredo">{senha}</div>
-                    <p className="muted" style={{ fontSize: 12, marginTop: 6 }}>Copie e configure no carregador. Ela não fica salva em texto: se perder, gere outra.</p>
+                    <p className="muted" style={{ fontSize: 12.5, marginBottom: 8 }}>Digite este endereço no carregador, no campo do endereço do servidor (OCPP 1.6). É só isso: ele já leva a chave de segurança.</p>
+                    <CopiarTexto texto={enderecoChave} rotulo="Copiar endereço do carregador" />
+                    {q.chave && <p className="muted" style={{ fontSize: 12, marginTop: 6 }}>Endereço novo gerado: o anterior deixou de valer. Atualize no carregador.</p>}
+                    <details style={{ marginTop: 10 }}>
+                      <summary className="muted" style={{ fontSize: 12.5, cursor: "pointer" }}>Gerar outro endereço (se a chave vazou)</summary>
+                      <form action={novaChaveOcpp} style={{ marginTop: 8 }}>
+                        <input type="hidden" name="id" value={id} />
+                        <button className="btn btn-ghost btn-sm"><Ic n="refresh" />Gerar novo endereço</button>
+                        <span className="muted" style={{ fontSize: 12, marginLeft: 8 }}>O atual para de funcionar na hora.</span>
+                      </form>
+                    </details>
                   </>
                 ) : (
-                  <form action={novaSenhaOcpp} style={{ marginTop: 12 }}>
+                  <form action={novaChaveOcpp}>
                     <input type="hidden" name="id" value={id} />
-                    <button className="btn btn-ghost btn-sm"><Ic n="refresh" />Gerar nova senha</button>
-                    <span className="muted" style={{ fontSize: 12, marginLeft: 8 }}>A atual deixa de valer.</span>
+                    <p className="muted" style={{ fontSize: 12.5, marginBottom: 8 }}>Gere o endereço do carregador: é o que se digita no carregador para ele conectar.</p>
+                    <button className="btn btn-volt btn-sm"><Ic n="refresh" />Gerar endereço do carregador</button>
                   </form>
                 )}
 
-                {/* Carregador sem campo de usuário e senha (ex.: Flexem): a chave vai no endereço. */}
-                <div className="box-title" style={{ marginTop: 18 }}>Carregador sem campo de usuário e senha</div>
-                <p className="muted" style={{ fontSize: 12.5, margin: "4px 0 8px" }}>
-                  Alguns carregadores só têm o campo do endereço. Para eles, use o endereço com chave: a chave secreta vai dentro dele e substitui o usuário e a senha.
-                </p>
-                {chaveNova ? (
-                  <>
-                    <div className="box-title">Endereço com chave (aparece só agora)</div>
-                    <div className="segredo" style={{ wordBreak: "break-all" }}>{(await urlOcpp(e.codigo)).replace(/\/ocpp\/.*$/, `/ocpp/k-${chaveNova}/${e.codigo}`)}</div>
-                    <p className="muted" style={{ fontSize: 12, marginTop: 6 }}>Digite exatamente assim no campo de endereço do carregador. Não fica salvo em texto: se perder, gere outro.</p>
-                  </>
-                ) : (
-                  <div className="row" style={{ gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-                    <form action={novaChaveOcpp}>
-                      <input type="hidden" name="id" value={id} />
-                      <button className="btn btn-ghost btn-sm"><Ic n="refresh" />{temChave ? "Gerar novo endereço com chave" : "Gerar endereço com chave"}</button>
-                    </form>
-                    {temChave && (
-                      <form action={desligarChaveOcpp}>
-                        <input type="hidden" name="id" value={id} />
-                        <button className="btn btn-ghost btn-sm">Desligar endereço com chave</button>
-                      </form>
-                    )}
-                    <span className="muted" style={{ fontSize: 12 }}>{temChave ? "Ativo. Gerar outro faz o atual deixar de valer." : "Desligado."}</span>
+                <details style={{ marginTop: 14 }}>
+                  <summary className="muted" style={{ fontSize: 12.5, cursor: "pointer" }}>Carregador com campos de usuário e senha (opcional)</summary>
+                  <p className="muted" style={{ fontSize: 12.5, margin: "8px 0" }}>Só para carregadores que pedem usuário e senha (OCPP perfil de segurança 1). Nesse caso use este endereço, sem chave:</p>
+                  <div className="ocpp-url">{await urlOcpp(e.codigo)}</div>
+                  <div className="kv" style={{ marginTop: 10 }}>
+                    <div><small>Usuário</small><b className="mono">{e.codigo}</b></div>
                   </div>
-                )}
+                  {senha ? (
+                    <>
+                      <div className="box-title" style={{ marginTop: 12 }}>Senha (aparece só agora)</div>
+                      <div className="segredo">{senha}</div>
+                      <p className="muted" style={{ fontSize: 12, marginTop: 6 }}>Copie e configure no carregador. Ela não fica salva em texto: se perder, gere outra.</p>
+                    </>
+                  ) : (
+                    <form action={novaSenhaOcpp} style={{ marginTop: 12 }}>
+                      <input type="hidden" name="id" value={id} />
+                      <button className="btn btn-ghost btn-sm"><Ic n="refresh" />Gerar nova senha</button>
+                      <span className="muted" style={{ fontSize: 12, marginLeft: 8 }}>A atual deixa de valer.</span>
+                    </form>
+                  )}
+                  {enderecoChave && (
+                    <form action={desligarChaveOcpp} style={{ marginTop: 12 }}>
+                      <input type="hidden" name="id" value={id} />
+                      <button className="btn btn-ghost btn-sm">Desligar o endereço com chave</button>
+                      <span className="muted" style={{ fontSize: 12, marginLeft: 8 }}>Deixa só usuário e senha.</span>
+                    </form>
+                  )}
+                </details>
               </div>
             </div>
           )}

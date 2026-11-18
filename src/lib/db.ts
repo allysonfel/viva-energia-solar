@@ -91,6 +91,11 @@ CREATE TABLE IF NOT EXISTS estacoes (
 -- Carregador sem campo de usuário e senha: a chave vai no endereço
 -- (/ocpp/k-<chave>/<código>). Só o hash fica guardado.
 ALTER TABLE estacoes ADD COLUMN IF NOT EXISTS ocpp_chave_hash TEXT;
+-- Cópia cifrada da chave (o admin vê e copia o endereço sempre) e a última
+-- conexão recusada, para o próprio admin saber por que o carregador não entra.
+ALTER TABLE estacoes ADD COLUMN IF NOT EXISTS ocpp_chave_cifrada TEXT;
+ALTER TABLE estacoes ADD COLUMN IF NOT EXISTS ocpp_recusa_em TIMESTAMPTZ;
+ALTER TABLE estacoes ADD COLUMN IF NOT EXISTS ocpp_recusa_motivo TEXT;
 
 -- Conectores (connectorId 1, 2...). Status cru do OCPP:
 -- Available, Preparing, Charging, SuspendedEV, SuspendedEVSE, Finishing,

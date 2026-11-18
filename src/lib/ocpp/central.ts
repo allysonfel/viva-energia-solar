@@ -61,6 +61,8 @@ export async function autenticar(codigo: string, authorization: string | undefin
   const lista = (falhas.get(chaveIp) ?? []).filter((t) => agora - t < 15 * 60_000);
   if (!chave && lista.length >= 10) {
     console.warn(`[ocpp] ${codigo.slice(0, 40)} (${chaveIp}) bloqueado por 15 min: 10 senhas erradas. Use o endereço com chave ou espere.`);
+    await sql`UPDATE estacoes SET ocpp_recusa_em = now(), ocpp_recusa_motivo = 'muitas senhas erradas: use o endereço do carregador'
+      WHERE codigo = ${codigo} AND (ocpp_recusa_em IS NULL OR ocpp_recusa_em < now() - interval '1 minute')`.catch(() => {});
     return false;
   }
   await ensureSchema();
@@ -83,6 +85,9 @@ export async function autenticar(codigo: string, authorization: string | undefin
       falhas.set(chaveIp, lista);
     }
     console.warn(`[ocpp] conexão recusada para ${codigo.slice(0, 40)} (${chaveIp}): ${motivo}`);
+    // Fica na tela da estação (no máximo 1 gravação por minuto).
+    if (e) await sql`UPDATE estacoes SET ocpp_recusa_em = now(), ocpp_recusa_motivo = ${motivo}
+      WHERE id = ${e.id} AND (ocpp_recusa_em IS NULL OR ocpp_recusa_em < now() - interval '1 minute' OR ocpp_recusa_motivo IS DISTINCT FROM ${motivo})`.catch(() => {});
   }
   return ok;
 }
