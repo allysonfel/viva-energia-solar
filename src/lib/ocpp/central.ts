@@ -49,14 +49,20 @@ const iguais = (a: string, b: string) => {
 const falhas = new Map<string, number[]>();
 
 // Perfil de segurança 1 do OCPP: Basic com usuário = código da estação e a
-// senha cadastrada. 10 falhas em 15 min por IP bloqueiam a origem.
+// senha cadastrada. Conferir a senha é caro (scrypt), então 10 senhas erradas
+// em 15 min bloqueiam aquele IP só para senha.
 // Carregador que não tem campo de usuário e senha (vários modelos chineses):
-// a chave longa vai no próprio endereço, /ocpp/k-<chave>/<código>.
+// a chave longa vai no próprio endereço, /ocpp/k-<chave>/<código>. A chave é
+// barata de conferir e impossível de adivinhar (~130 bits), então NÃO passa
+// pela trava: salvou o endereço certo, conecta na hora, sem ninguém liberar.
 export async function autenticar(codigo: string, authorization: string | undefined, ip: string | undefined, chave?: string): Promise<boolean> {
   const chaveIp = ip ?? "?";
   const agora = Date.now();
   const lista = (falhas.get(chaveIp) ?? []).filter((t) => agora - t < 15 * 60_000);
-  if (lista.length >= 10) return false;
+  if (!chave && lista.length >= 10) {
+    console.warn(`[ocpp] ${codigo.slice(0, 40)} (${chaveIp}) bloqueado por 15 min: 10 senhas erradas. Use o endereço com chave ou espere.`);
+    return false;
+  }
   await ensureSchema();
   const [e] = await sql<{ id: number; ocpp_senha_hash: string | null; ocpp_chave_hash: string | null; simulada: boolean; ativa: boolean }[]>`
     SELECT id, ocpp_senha_hash, ocpp_chave_hash, simulada, ativa FROM estacoes WHERE codigo = ${codigo}`;
@@ -72,8 +78,10 @@ export async function autenticar(codigo: string, authorization: string | undefin
     }
   }
   if (!ok) {
-    lista.push(agora);
-    falhas.set(chaveIp, lista);
+    if (!chave) {
+      lista.push(agora);
+      falhas.set(chaveIp, lista);
+    }
     console.warn(`[ocpp] conexão recusada para ${codigo.slice(0, 40)} (${chaveIp}): ${motivo}`);
   }
   return ok;
