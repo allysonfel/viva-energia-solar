@@ -11,7 +11,7 @@ import { Badge, BadgeRecarga } from "@/components/Badge";
 import { Ic } from "@/components/Ic";
 import { AutoAtualizar } from "@/components/AutoAtualizar";
 import { Comandos, PararRecarga } from "./Comandos";
-import { editarEstacao, novaSenhaOcpp, editarConector, arquivarEstacao } from "../acoes";
+import { editarEstacao, novaSenhaOcpp, novaChaveOcpp, desligarChaveOcpp, editarConector, arquivarEstacao } from "../acoes";
 import { EscolherTarifas } from "../EscolherTarifas";
 import { listarTarifas, tarifasDaEstacao, horarioDa, faixaNoHorario } from "@/lib/tarifas";
 
@@ -62,6 +62,8 @@ export default async function Estacao({ params, searchParams }: {
   const [daEstacao, todasTarifas] = await Promise.all([tarifasDaEstacao(id), admin ? listarTarifas() : []]);
   const tarifaAgora = faixaNoHorario(daEstacao);
   const senha = admin && !e.simulada ? await lerSegredo("ocpp", id) : "";
+  const chaveNova = admin && !e.simulada ? await lerSegredo("ocpp-chave", id) : "";
+  const [{ tem_chave: temChave }] = await sql<{ tem_chave: boolean }[]>`SELECT (ocpp_chave_hash IS NOT NULL) AS tem_chave FROM estacoes WHERE id = ${id}`;
   const maxKw = Math.max(7, Math.round(e.conectores.reduce((s, c) => s + c.potencia_w, 0) / 1000));
   const limiteKw = e.limite_w ? Math.round(e.limite_w / 1000) : maxKw;
   const real = (c: number) => (c / 100).toFixed(2).replace(".", ",");
@@ -197,6 +199,33 @@ export default async function Estacao({ params, searchParams }: {
                     <button className="btn btn-ghost btn-sm"><Ic n="refresh" />Gerar nova senha</button>
                     <span className="muted" style={{ fontSize: 12, marginLeft: 8 }}>A atual deixa de valer.</span>
                   </form>
+                )}
+
+                {/* Carregador sem campo de usuário e senha (ex.: Flexem): a chave vai no endereço. */}
+                <div className="box-title" style={{ marginTop: 18 }}>Carregador sem campo de usuário e senha</div>
+                <p className="muted" style={{ fontSize: 12.5, margin: "4px 0 8px" }}>
+                  Alguns carregadores só têm o campo do endereço. Para eles, use o endereço com chave: a chave secreta vai dentro dele e substitui o usuário e a senha.
+                </p>
+                {chaveNova ? (
+                  <>
+                    <div className="box-title">Endereço com chave (aparece só agora)</div>
+                    <div className="segredo" style={{ wordBreak: "break-all" }}>{(await urlOcpp(e.codigo)).replace(/\/ocpp\/.*$/, `/ocpp/k-${chaveNova}/${e.codigo}`)}</div>
+                    <p className="muted" style={{ fontSize: 12, marginTop: 6 }}>Digite exatamente assim no campo de endereço do carregador. Não fica salvo em texto: se perder, gere outro.</p>
+                  </>
+                ) : (
+                  <div className="row" style={{ gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                    <form action={novaChaveOcpp}>
+                      <input type="hidden" name="id" value={id} />
+                      <button className="btn btn-ghost btn-sm"><Ic n="refresh" />{temChave ? "Gerar novo endereço com chave" : "Gerar endereço com chave"}</button>
+                    </form>
+                    {temChave && (
+                      <form action={desligarChaveOcpp}>
+                        <input type="hidden" name="id" value={id} />
+                        <button className="btn btn-ghost btn-sm">Desligar endereço com chave</button>
+                      </form>
+                    )}
+                    <span className="muted" style={{ fontSize: 12 }}>{temChave ? "Ativo. Gerar outro faz o atual deixar de valer." : "Desligado."}</span>
+                  </div>
                 )}
               </div>
             </div>

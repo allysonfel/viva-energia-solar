@@ -9,6 +9,7 @@ import type { WebSocket } from "ws";
 import { createHmac, timingSafeEqual } from "crypto";
 import { sql, ensureSchema } from "../db";
 import { verifyPassword } from "../auth";
+import { hashChave } from "./chave";
 import { getSettings } from "../settings";
 import { abrirAviso, resolverAviso } from "../avisos";
 import { cobrarRecarga } from "../carteira";
@@ -49,16 +50,20 @@ const falhas = new Map<string, number[]>();
 
 // Perfil de segurança 1 do OCPP: Basic com usuário = código da estação e a
 // senha cadastrada. 10 falhas em 15 min por IP bloqueiam a origem.
-export async function autenticar(codigo: string, authorization: string | undefined, ip: string | undefined): Promise<boolean> {
-  const chave = ip ?? "?";
+// Carregador que não tem campo de usuário e senha (vários modelos chineses):
+// a chave longa vai no próprio endereço, /ocpp/k-<chave>/<código>.
+export async function autenticar(codigo: string, authorization: string | undefined, ip: string | undefined, chave?: string): Promise<boolean> {
+  const chaveIp = ip ?? "?";
   const agora = Date.now();
-  const lista = (falhas.get(chave) ?? []).filter((t) => agora - t < 15 * 60_000);
+  const lista = (falhas.get(chaveIp) ?? []).filter((t) => agora - t < 15 * 60_000);
   if (lista.length >= 10) return false;
   await ensureSchema();
-  const [e] = await sql<{ id: number; ocpp_senha_hash: string | null; simulada: boolean; ativa: boolean }[]>`
-    SELECT id, ocpp_senha_hash, simulada, ativa FROM estacoes WHERE codigo = ${codigo}`;
+  const [e] = await sql<{ id: number; ocpp_senha_hash: string | null; ocpp_chave_hash: string | null; simulada: boolean; ativa: boolean }[]>`
+    SELECT id, ocpp_senha_hash, ocpp_chave_hash, simulada, ativa FROM estacoes WHERE codigo = ${codigo}`;
   let ok = false;
-  if (e?.ativa && authorization?.startsWith("Basic ")) {
+  const motivo = !e ? "estação não cadastrada" : !e.ativa ? "estação inativa" : chave ? "chave do endereço errada" : authorization?.startsWith("Basic ") ? "usuário ou senha errados" : "carregador não mandou usuário e senha";
+  if (e?.ativa && !e.simulada && chave && e.ocpp_chave_hash) ok = iguais(hashChave(chave), e.ocpp_chave_hash);
+  if (!ok && !chave && e?.ativa && authorization?.startsWith("Basic ")) {
     const dec = Buffer.from(authorization.slice(6), "base64").toString("utf8");
     const i = dec.indexOf(":");
     const usuario = dec.slice(0, i), senha = dec.slice(i + 1);
@@ -68,8 +73,8 @@ export async function autenticar(codigo: string, authorization: string | undefin
   }
   if (!ok) {
     lista.push(agora);
-    falhas.set(chave, lista);
-    console.warn(`[ocpp] conexão recusada para ${codigo.slice(0, 40)} (${chave})`);
+    falhas.set(chaveIp, lista);
+    console.warn(`[ocpp] conexão recusada para ${codigo.slice(0, 40)} (${chaveIp}): ${motivo}`);
   }
   return ok;
 }

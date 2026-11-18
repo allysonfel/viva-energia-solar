@@ -88,6 +88,9 @@ CREATE TABLE IF NOT EXISTS estacoes (
   ativa BOOLEAN NOT NULL DEFAULT true,
   criado_em TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+-- Carregador sem campo de usuário e senha: a chave vai no endereço
+-- (/ocpp/k-<chave>/<código>). Só o hash fica guardado.
+ALTER TABLE estacoes ADD COLUMN IF NOT EXISTS ocpp_chave_hash TEXT;
 
 -- Conectores (connectorId 1, 2...). Status cru do OCPP:
 -- Available, Preparing, Charging, SuspendedEV, SuspendedEVSE, Finishing,

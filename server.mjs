@@ -44,9 +44,20 @@ const upgradeNext = (req, socket, head) => app.upgradeHandler(req, socket, head)
 
 httpServer.on("request", (req, res) => handle(req, res));
 
+// Atrás do proxy da VPS o endereço da conexão é o do proxy (rede interna):
+// aí vale o primeiro IP do X-Forwarded-For. Conexão direta usa o próprio IP.
+const interno = (ip) => /^(::ffff:)?(10\.|127\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)|^::1$/.test(ip || "");
+function ipReal(req) {
+  const direto = req.socket.remoteAddress;
+  if (!interno(direto)) return direto;
+  const xff = String(req.headers["x-forwarded-for"] || "").split(",")[0].trim();
+  return xff || direto;
+}
+
 httpServer.on("upgrade", async (req, socket, head) => {
   const caminho = (req.url || "").split("?")[0];
-  const m = caminho.match(/^\/ocpp\/([A-Za-z0-9._-]{3,40})\/?$/);
+  // /ocpp/<código> (usuário e senha) ou /ocpp/k-<chave>/<código> (chave no endereço).
+  const m = caminho.match(/^\/ocpp\/(?:k-([A-Za-z0-9_-]{24,64})\/)?([A-Za-z0-9._-]{3,40})\/?$/);
   if (!m) return upgradeNext(req, socket, head); // recarga ao vivo do modo dev
   const ocpp = globalThis.__vivaOcpp;
   if (!ocpp) return recusar(socket, 503, "Service Unavailable");
@@ -54,12 +65,12 @@ httpServer.on("upgrade", async (req, socket, head) => {
   if (!protocolos.includes("ocpp1.6")) return recusar(socket, 400, "Bad Request");
   let ok = false;
   try {
-    ok = await ocpp.autenticar(m[1], req.headers.authorization, req.socket.remoteAddress);
+    ok = await ocpp.autenticar(m[2], req.headers.authorization, ipReal(req), m[1]);
   } catch (err) {
     console.error("[ocpp] erro na autenticação:", err instanceof Error ? err.message : err);
   }
   if (!ok) return recusar(socket, 401, "Unauthorized");
-  wss.handleUpgrade(req, socket, head, (ws) => ocpp.conectar(ws, m[1]));
+  wss.handleUpgrade(req, socket, head, (ws) => ocpp.conectar(ws, m[2]));
 });
 
 httpServer.listen(port, () => {

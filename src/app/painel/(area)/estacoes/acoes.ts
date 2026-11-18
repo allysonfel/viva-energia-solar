@@ -6,10 +6,12 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { sql } from "@/lib/db";
 import { requireUser, requireAba, parceiroDoEscopo, podeOperar } from "@/lib/session";
+import { randomBytes } from "crypto";
 import { hashPassword, randomId } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import { centavosDe } from "@/lib/format";
 import { guardarSegredo } from "@/lib/segredo";
+import { hashChave } from "@/lib/ocpp/chave";
 import { estacaoDoEscopo } from "@/lib/estacoes";
 import { TIPOS_CONECTOR } from "@/lib/ocpp/tipos";
 import { conflitoDeHorario, type Tarifa } from "@/lib/tarifas";
@@ -138,6 +140,33 @@ export async function novaSenhaOcpp(fd: FormData) {
   await audit(`usuario:${u.id}`, "estacao_senha_ocpp", "estacao", id);
   await guardarSegredo("ocpp", id, senha);
   redirect(`/painel/estacoes/${id}?senha=1`);
+}
+
+// Endereço com chave, para carregador sem campo de usuário e senha. Gerar de
+// novo invalida o anterior. O endereço completo aparece uma vez só.
+export async function novaChaveOcpp(fd: FormData) {
+  const u = await requireUser(["admin"]);
+  const id = Number(fd.get("id"));
+  const e = await estacaoDoEscopo(id, null);
+  if (!e || e.simulada) redirect("/painel/estacoes");
+  // Fácil de digitar na tela do carregador: minúsculas e números, sem l, o, 0 e 1
+  // (26 caracteres de 32 opções: ~130 bits).
+  const alfabeto = "abcdefghijkmnpqrstuvwxyz23456789";
+  const chave = Array.from(randomBytes(26), (b) => alfabeto[b % 32]).join("");
+  await sql`UPDATE estacoes SET ocpp_chave_hash = ${hashChave(chave)} WHERE id = ${id}`;
+  await audit(`usuario:${u.id}`, "estacao_chave_ocpp", "estacao", id);
+  await guardarSegredo("ocpp-chave", id, chave);
+  redirect(`/painel/estacoes/${id}?chave=1`);
+}
+
+export async function desligarChaveOcpp(fd: FormData) {
+  const u = await requireUser(["admin"]);
+  const id = Number(fd.get("id"));
+  const e = await estacaoDoEscopo(id, null);
+  if (!e || e.simulada) redirect("/painel/estacoes");
+  await sql`UPDATE estacoes SET ocpp_chave_hash = NULL WHERE id = ${id}`;
+  await audit(`usuario:${u.id}`, "estacao_chave_ocpp_desligada", "estacao", id);
+  redirect(`/painel/estacoes/${id}?ok=dados`);
 }
 
 export async function editarConector(fd: FormData) {
