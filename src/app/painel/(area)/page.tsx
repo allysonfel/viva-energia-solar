@@ -41,7 +41,10 @@ export default async function VisaoGeral({ searchParams }: { searchParams: Promi
     gerarRelatorio(lerIntervalo({ p: "30d" }, "30d"), { parceiro, soReais }),
   ]);
   const m = { centavos: mes.total.receita, wh: mes.total.wh, custo: mes.total.custo, n: mes.total.recargas, whTotal: mes.total.wh + mes.total.operacao_wh };
-  const estacoes = (await listarEstacoes(parceiro)).filter((e) => !soReais || !e.simulada);
+  const todasEstacoes = await listarEstacoes(parceiro);
+  // A chave de demonstração só faz sentido se existir estação simulada.
+  const temSimulada = todasEstacoes.some((e) => e.simulada);
+  const estacoes = todasEstacoes.filter((e) => !soReais || !e.simulada);
   const andamento = await sql<{ id: number; estacao: string; estacao_id: number; conector_numero: number; energia_wh: number; potencia_w: number; valor_centavos: number; inicio: Date }[]>`
     SELECT r.id, e.nome AS estacao, r.estacao_id, r.conector_numero, r.energia_wh, r.potencia_w, r.valor_centavos, r.inicio
     FROM recargas r JOIN estacoes e ON e.id = r.estacao_id WHERE r.status = 'em_andamento' ${escopo} ORDER BY r.inicio`;
@@ -54,13 +57,13 @@ export default async function VisaoGeral({ searchParams }: { searchParams: Promi
     <>
       <AutoAtualizar ms={10_000} />
       {erro === "permissao" && <div className="aviso erro">Seu perfil não tem acesso a essa tela.</div>}
-      <form action={alternarDadosReais} className="demo-chave">
+      {temSimulada && <form action={alternarDadosReais} className="demo-chave">
         <span className="muted">{soReais ? "Mostrando só dados reais (sem estações simuladas)" : "Mostrando dados de demonstração"}</span>
         <button type="submit" className="demo-btn" aria-pressed={!soReais}>
           Dados de demonstração
           <i className={`toggle ${soReais ? "" : "on"}`} aria-hidden />
         </button>
-      </form>
+      </form>}
       <div className="kpis">
         <div className="kpi hero"><small>Receita no mês</small><b>{brl(m.centavos)}</b><div className="d">mês passado {brl(anterior.total.receita)}</div></div>
         <div className="kpi"><small>Energia vendida</small><b>{kwh(m.wh, 0)} kWh</b><div className="d">no mês</div></div>
