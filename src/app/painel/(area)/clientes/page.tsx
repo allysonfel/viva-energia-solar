@@ -23,9 +23,33 @@ export default async function Clientes({ searchParams }: { searchParams: Promise
     ${onde}
     ORDER BY r.ultima DESC NULLS LAST, m.criado_em DESC LIMIT 50 OFFSET ${(pagina - 1) * 50}`;
   const [{ total }] = await sql<{ total: number }[]>`SELECT count(*)::int AS total FROM motoristas m ${onde}`;
+  // Topo da aba (pedido do Miguel, 2026-11-20): somatório do saldo em carteira de TODOS
+  // os clientes (dinheiro que já entrou e ainda não foi gasto), sem depender da busca.
+  // Aba só da equipe da Viva: parceiro não acessa Clientes.
+  const [cart] = await sql<{ saldo: number; com_saldo: number; negativo: number; com_negativo: number }[]>`
+    SELECT coalesce(sum(saldo_centavos) FILTER (WHERE saldo_centavos > 0), 0)::bigint AS saldo,
+      count(*) FILTER (WHERE saldo_centavos > 0)::int AS com_saldo,
+      coalesce(sum(saldo_centavos) FILTER (WHERE saldo_centavos < 0), 0)::bigint AS negativo,
+      count(*) FILTER (WHERE saldo_centavos < 0)::int AS com_negativo
+    FROM motoristas`;
+  const [mes] = await sql<{ entrou: number; gasto: number }[]>`
+    SELECT coalesce(sum(valor_centavos) FILTER (WHERE tipo = 'credito'), 0)::bigint AS entrou,
+      coalesce(-sum(valor_centavos) FILTER (WHERE tipo = 'recarga'), 0)::bigint AS gasto
+    FROM carteira_movimentos
+    WHERE criado_em >= date_trunc('month', now() AT TIME ZONE 'America/Recife') AT TIME ZONE 'America/Recife'`;
   const pg = (n: number) => `/painel/clientes?${new URLSearchParams({ ...(busca ? { q: busca } : {}), pg: String(n) })}`;
 
   return (
+    <>
+    <div className="kpis kpis-3">
+      <div className="kpi hero">
+        <small>Saldo em carteira dos clientes</small>
+        <b>{brl(Number(cart.saldo))}</b>
+        <div className="d">{num(cart.com_saldo)} {cart.com_saldo === 1 ? "cliente com saldo" : "clientes com saldo"}{cart.com_negativo ? ` · ${brl(Number(cart.negativo))} negativo (${cart.com_negativo})` : ""}</div>
+      </div>
+      <div className="kpi"><small>Créditos colocados no mês</small><b>{brl(Number(mes.entrou))}</b><div className="d">Pix e cartão</div></div>
+      <div className="kpi"><small>Usado em recargas no mês</small><b>{brl(Number(mes.gasto))}</b><div className="d">saiu da carteira</div></div>
+    </div>
     <div className="panel">
       <form className="panel-h" action="/painel/clientes">
         <div className="tsearch"><Ic n="search" /><input name="q" placeholder="Buscar por nome, e-mail, veículo ou placa" defaultValue={busca} maxLength={60} /></div>
@@ -63,5 +87,6 @@ export default async function Clientes({ searchParams }: { searchParams: Promise
         </div>
       )}
     </div>
+    </>
   );
 }

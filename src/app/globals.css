@@ -285,6 +285,7 @@ h1,h2,h3{font-family:var(--display);font-stretch:112%;letter-spacing:-.01em;line
 .topbar .acts{display:flex;align-items:center;gap:10px}
 .content{padding:22px 28px 40px}
 .kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:16px}
+.kpis.kpis-3{grid-template-columns:repeat(3,1fr)}
 .kpi{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px}
 .kpi small{color:var(--muted);font-weight:600;font-size:12.5px}
 .kpi b{display:block;font-family:var(--mono);font-size:22px;font-weight:600;margin:6px 0 2px;white-space:nowrap}
@@ -404,6 +405,7 @@ select.input{height:38px;border-radius:10px;padding:0 10px;width:auto}
   .topbar .acts .btn:not(.keep){display:none}
   .content{padding:14px 14px 30px}
   .kpis{grid-template-columns:1fr 1fr}.kpi:nth-child(n+4){display:block}.kpi:nth-child(5){display:none}
+  .kpis.kpis-3{grid-template-columns:1fr 1fr}.kpis-3 .kpi.hero{grid-column:1/-1}
   .kpi b{font-size:18px}
   .cmds{grid-template-columns:1fr 1fr}
   .notif-pop{position:fixed;left:12px;right:12px;top:64px;width:auto}
