@@ -394,6 +394,26 @@ ALTER TABLE recargas ADD COLUMN IF NOT EXISTS progresso_aviso_em TIMESTAMPTZ;
 ALTER TABLE recargas ADD COLUMN IF NOT EXISTS progresso_aviso_soc INT;
 -- Abas do painel liberadas para a pessoa (NULL = todas as do perfil).
 ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS abas TEXT[];
+-- Taxa de ativação (valor fixo por recarga, ex.: aluguel da vaga) e taxa de
+-- ociosidade (R$ por minuto com o carro ainda plugado depois do fim da recarga,
+-- passada a tolerância). Pedido do Miguel em 2026-11-20. 0 = sem taxa.
+ALTER TABLE estacoes ADD COLUMN IF NOT EXISTS taxa_ativacao_centavos INT NOT NULL DEFAULT 0 CHECK (taxa_ativacao_centavos >= 0);
+ALTER TABLE estacoes ADD COLUMN IF NOT EXISTS ociosidade_min_centavos INT NOT NULL DEFAULT 0 CHECK (ociosidade_min_centavos >= 0);
+ALTER TABLE estacoes ADD COLUMN IF NOT EXISTS ociosidade_tolerancia_min INT NOT NULL DEFAULT 10 CHECK (ociosidade_tolerancia_min BETWEEN 0 AND 240);
+-- Na recarga ficam os valores do início (mudar a estação depois não muda recarga já feita).
+-- valor_centavos continua sendo o TOTAL cobrado (energia + ativação + ociosidade).
+ALTER TABLE recargas ADD COLUMN IF NOT EXISTS taxa_ativacao_centavos INT NOT NULL DEFAULT 0;
+ALTER TABLE recargas ADD COLUMN IF NOT EXISTS ociosidade_min_centavos INT NOT NULL DEFAULT 0;
+ALTER TABLE recargas ADD COLUMN IF NOT EXISTS ociosidade_tolerancia_min INT NOT NULL DEFAULT 0;
+ALTER TABLE recargas ADD COLUMN IF NOT EXISTS ociosidade_desde TIMESTAMPTZ;
+ALTER TABLE recargas ADD COLUMN IF NOT EXISTS ociosidade_ate TIMESTAMPTZ;
+ALTER TABLE recargas ADD COLUMN IF NOT EXISTS ociosidade_minutos INT NOT NULL DEFAULT 0;
+ALTER TABLE recargas ADD COLUMN IF NOT EXISTS ociosidade_centavos INT NOT NULL DEFAULT 0;
+ALTER TABLE recargas ADD COLUMN IF NOT EXISTS ociosidade_status TEXT CHECK (ociosidade_status IN ('aguardando', 'cobrada'));
+CREATE INDEX IF NOT EXISTS recargas_ociosidade_idx ON recargas (estacao_id, conector_numero) WHERE ociosidade_status = 'aguardando';
+-- Lançamento próprio da ociosidade na carteira.
+ALTER TABLE carteira_movimentos DROP CONSTRAINT IF EXISTS carteira_movimentos_tipo_check;
+ALTER TABLE carteira_movimentos ADD CONSTRAINT carteira_movimentos_tipo_check CHECK (tipo IN ('credito', 'recarga', 'ajuste', 'estorno', 'ociosidade'));
 CREATE INDEX IF NOT EXISTS recargas_motorista_idx ON recargas (motorista_id, inicio DESC) WHERE motorista_id IS NOT NULL;
 `;
 

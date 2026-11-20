@@ -12,7 +12,7 @@ import { verifyPassword } from "../auth";
 import { hashChave } from "./chave";
 import { getSettings } from "../settings";
 import { abrirAviso, resolverAviso } from "../avisos";
-import { cobrarRecarga } from "../carteira";
+import { cobrarRecarga, cobrarOciosidade, OCIOSIDADE_MAX_MIN } from "../carteira";
 import { tarifasDaEstacao, precoNoHorario } from "../tarifas";
 import { avisarMotorista, avisarProgresso } from "../notificar";
 import { brl } from "../format";
@@ -242,6 +242,21 @@ async function statusTag(idTag: string): Promise<{ status: "Accepted" | "Invalid
 }
 
 const valor = (energiaWh: number, precoKwh: number) => Math.round((energiaWh * precoKwh) / 1000);
+// Total da recarga: energia + taxa de ativação. A ativação só entra quando houve
+// energia entregue (recarga que não chegou a carregar não paga a vaga).
+const totalRecarga = (energiaWh: number, precoKwh: number, ativacao: number) => valor(energiaWh, precoKwh) + (energiaWh > 0 ? ativacao : 0);
+
+// Fecha a ociosidade aberta no conector (cabo saiu, conector parou ou outro
+// carro começou) e avisa o motorista do valor.
+async function fecharOciosidade(estacaoId: number, conector: number, ate: Date) {
+  const abertas = await sql<{ id: number }[]>`
+    SELECT id FROM recargas WHERE estacao_id = ${estacaoId} AND conector_numero = ${conector} AND ociosidade_status = 'aguardando'`;
+  for (const a of abertas) {
+    const r = await cobrarOciosidade(a.id, ate);
+    if (r?.motorista && r.valor > 0)
+      avisarMotorista(r.motorista, "Taxa de ociosidade", `O carro ficou ${r.minutos} min plugado além da tolerância depois do fim da recarga: ${brl(r.valor)} descontados da carteira.`, `/recibo/${a.id}`);
+  }
+}
 
 type Handler = (c: Conexao, p: Record<string, unknown>) => Promise<Record<string, unknown>>;
 
@@ -275,6 +290,8 @@ const HANDLERS: Record<string, Handler> = {
         INSERT INTO conectores (estacao_id, numero, status, erro, atualizado_em) VALUES (${c.estacaoId}, ${n}, ${status}, ${codErro}, now())
         ON CONFLICT (estacao_id, numero) DO UPDATE SET status = EXCLUDED.status, erro = EXCLUDED.erro, atualizado_em = now()`;
     }
+    // Cabo saiu (Available) ou conector parou: fecha a ociosidade aberta nele.
+    if (n !== null && n >= 1 && ["Available", "Unavailable", "Faulted"].includes(status)) await fecharOciosidade(c.estacaoId, n, horario(p.timestamp));
     if (status === "Faulted") {
       const [e] = await sql<{ nome: string }[]>`SELECT nome FROM estacoes WHERE id = ${c.estacaoId}`;
       await abrirAviso("falha", { estacao: c.estacaoId }, `${e?.nome ?? c.codigo} com falha`, `Conector ${n || "geral"}: ${codErro}`);
@@ -299,8 +316,10 @@ const HANDLERS: Record<string, Handler> = {
     const intencao = estado.intencoes.get(chave);
     const daIntencao = intencao && intencao.idTag === idTag && intencao.expira > Date.now() ? intencao : null;
     if (daIntencao) estado.intencoes.delete(chave);
-    const [e] = await sql<{ preco_kwh_centavos: number; custo_kwh_centavos: number }[]>`
-      SELECT preco_kwh_centavos, custo_kwh_centavos FROM estacoes WHERE id = ${c.estacaoId}`;
+    const [e] = await sql<{ preco_kwh_centavos: number; custo_kwh_centavos: number; taxa_ativacao_centavos: number; ociosidade_min_centavos: number; ociosidade_tolerancia_min: number }[]>`
+      SELECT preco_kwh_centavos, custo_kwh_centavos, taxa_ativacao_centavos, ociosidade_min_centavos, ociosidade_tolerancia_min FROM estacoes WHERE id = ${c.estacaoId}`;
+    // Outro carro começou no conector: a ociosidade do anterior acaba aqui.
+    await fecharOciosidade(c.estacaoId, n, inicio);
     // Tarifa do horário de início; voucher (se o motorista escolheu) aplicado em %.
     const tarifa = precoNoHorario(await tarifasDaEstacao(c.estacaoId), e?.preco_kwh_centavos ?? 0, inicio);
     const motoristaId = daIntencao?.motoristaId ?? tag.motorista;
@@ -324,19 +343,21 @@ const HANDLERS: Record<string, Handler> = {
         WHERE estacao_id = ${c.estacaoId} AND conector_numero = ${n} AND status = 'em_andamento' RETURNING id`;
       const [r] = await tx<{ id: number }[]>`
         INSERT INTO recargas (estacao_id, conector_numero, id_tag, motorista_id, origem, usuario_id, status, inicio,
-          medidor_inicio_wh, preco_kwh_centavos, preco_cheio_centavos, tarifa_nome, voucher_id, desconto_pct, custo_kwh_centavos, fim, motivo_fim)
+          medidor_inicio_wh, preco_kwh_centavos, preco_cheio_centavos, tarifa_nome, voucher_id, desconto_pct, custo_kwh_centavos, fim, motivo_fim,
+          taxa_ativacao_centavos, ociosidade_min_centavos, ociosidade_tolerancia_min)
         VALUES (${c.estacaoId}, ${n}, ${idTag}, ${motoristaId}, ${daIntencao?.origem ?? "carregador"},
           ${daIntencao?.usuarioId ?? null}, ${st === "Accepted" ? "em_andamento" : "recusada"}, ${inicio}, ${medidor},
           ${preco}, ${tarifa.preco}, ${tarifa.nome}, ${voucher?.voucher_id ?? null}, ${voucher?.pct ?? 0},
-          ${e?.custo_kwh_centavos ?? 0}, ${st === "Accepted" ? null : inicio}, ${st === "Accepted" ? null : "TagRecusada"})
+          ${e?.custo_kwh_centavos ?? 0}, ${st === "Accepted" ? null : inicio}, ${st === "Accepted" ? null : "TagRecusada"},
+          ${motoristaId ? e?.taxa_ativacao_centavos ?? 0 : 0}, ${motoristaId ? e?.ociosidade_min_centavos ?? 0 : 0}, ${e?.ociosidade_tolerancia_min ?? 0})
         RETURNING id`;
       if (voucher) await tx`UPDATE motorista_vouchers SET recarga_id = ${r.id}, usado_em = now() WHERE id = ${voucher.mv}`;
       return { id: r.id, fechadas };
     });
     for (const f of fechadas) await cobrarRecarga(f.id);
     if (motoristaId) {
-      const [x] = await sql<{ nome: string; preco: number }[]>`SELECT e.nome, r.preco_kwh_centavos AS preco FROM recargas r JOIN estacoes e ON e.id = r.estacao_id WHERE r.id = ${id}`;
-      if (st === "Accepted") avisarMotorista(motoristaId, "Recarga iniciada", `${x?.nome ?? "Estação"} · conector ${n} · ${brl(x?.preco ?? 0)}/kWh`, `/recarga/${id}`);
+      const [x] = await sql<{ nome: string; preco: number; ativacao: number }[]>`SELECT e.nome, r.preco_kwh_centavos AS preco, r.taxa_ativacao_centavos AS ativacao FROM recargas r JOIN estacoes e ON e.id = r.estacao_id WHERE r.id = ${id}`;
+      if (st === "Accepted") avisarMotorista(motoristaId, "Recarga iniciada", `${x?.nome ?? "Estação"} · conector ${n} · ${brl(x?.preco ?? 0)}/kWh${x?.ativacao ? ` + ${brl(x.ativacao)} de ativação` : ""}`, `/recarga/${id}`);
       else avisarMotorista(motoristaId, "Recarga não liberada", "O saldo da carteira está abaixo do mínimo. Adicione crédito e tente de novo.", "/carteira");
     }
     return { transactionId: id, idTagInfo: { status: st } };
@@ -345,8 +366,8 @@ const HANDLERS: Record<string, Handler> = {
   async MeterValues(c, p) {
     const tx = int(p.transactionId);
     if (tx === null) return {};
-    const [r] = await sql<{ id: number; medidor_inicio_wh: number; preco_kwh_centavos: number; motorista_id: number | null; parada_solicitada: boolean }[]>`
-      SELECT id, medidor_inicio_wh, preco_kwh_centavos, motorista_id, parada_solicitada FROM recargas
+    const [r] = await sql<{ id: number; medidor_inicio_wh: number; preco_kwh_centavos: number; taxa_ativacao_centavos: number; motorista_id: number | null; parada_solicitada: boolean }[]>`
+      SELECT id, medidor_inicio_wh, preco_kwh_centavos, taxa_ativacao_centavos, motorista_id, parada_solicitada FROM recargas
       WHERE id = ${tx} AND estacao_id = ${c.estacaoId} AND status = 'em_andamento'`;
     if (!r) return {};
     const leituras = Array.isArray(p.meterValue) ? (p.meterValue as { timestamp?: unknown; sampledValue?: unknown }[]).slice(0, 20) : [];
@@ -357,7 +378,7 @@ const HANDLERS: Record<string, Handler> = {
       await sql`INSERT INTO leituras (recarga_id, em, medidor_wh, potencia_w, soc) VALUES (${r.id}, ${horario(l.timestamp)}, ${m.energiaWh}, ${m.potenciaW}, ${m.soc})`;
       await sql`
         UPDATE recargas SET energia_wh = ${energia}, potencia_w = ${m.potenciaW ?? 0}, soc = coalesce(${m.soc}, soc),
-          valor_centavos = ${valor(energia, r.preco_kwh_centavos)}, atualizado_em = now()
+          valor_centavos = ${totalRecarga(energia, r.preco_kwh_centavos, r.taxa_ativacao_centavos)}, atualizado_em = now()
         WHERE id = ${r.id}`;
     }
     if (r.motorista_id && !r.parada_solicitada) {
@@ -373,24 +394,31 @@ const HANDLERS: Record<string, Handler> = {
     const fim = horario(p.timestamp);
     const motivo = str(p.reason, 30) || "Local";
     if (tx !== null) {
-      const [r] = await sql<{ id: number; medidor_inicio_wh: number; preco_kwh_centavos: number; status: string }[]>`
-        SELECT id, medidor_inicio_wh, preco_kwh_centavos, status FROM recargas WHERE id = ${tx} AND estacao_id = ${c.estacaoId}`;
+      const [r] = await sql<{ id: number; medidor_inicio_wh: number; preco_kwh_centavos: number; taxa_ativacao_centavos: number; ociosidade_min_centavos: number; motorista_id: number | null; energia_wh: number; status: string }[]>`
+        SELECT id, medidor_inicio_wh, preco_kwh_centavos, taxa_ativacao_centavos, ociosidade_min_centavos, motorista_id, energia_wh, status FROM recargas WHERE id = ${tx} AND estacao_id = ${c.estacaoId}`;
       if (r && r.status === "em_andamento") {
         const energia = medidor === null ? null : Math.max(0, medidor - r.medidor_inicio_wh);
         // Parada por queda de energia, emergência ou falha conta como interrompida.
         const interrompida = ["EmergencyStop", "PowerLoss", "Reboot", "HardReset", "UnlockCommand", "Other"].includes(motivo);
+        // Ociosidade começa no fim da recarga se o carro continua plugado. Não vale
+        // quando o cabo já saiu (EVDisconnected) nem quando o carregador falhou.
+        const ocioso = !interrompida && motivo !== "EVDisconnected" && !!r.motorista_id && r.ociosidade_min_centavos > 0;
         await sql`
           UPDATE recargas SET status = ${interrompida ? "interrompida" : "concluida"}, fim = ${fim}, motivo_fim = ${motivo},
             medidor_fim_wh = ${medidor}, energia_wh = coalesce(${energia}, energia_wh), potencia_w = 0,
-            valor_centavos = ${energia === null ? sql`valor_centavos` : valor(energia, r.preco_kwh_centavos)}, atualizado_em = now()
+            valor_centavos = ${totalRecarga(energia ?? r.energia_wh, r.preco_kwh_centavos, r.taxa_ativacao_centavos)},
+            ociosidade_desde = ${ocioso ? fim : null}, ociosidade_status = ${ocioso ? "aguardando" : null}, atualizado_em = now()
           WHERE id = ${r.id}`;
         await cobrarRecarga(r.id);
         await resolverAviso("recarga_longa", { estacao: c.estacaoId, recarga: r.id });
-        const [f] = await sql<{ motorista_id: number | null; energia_wh: number; valor_centavos: number; status: string; parada_solicitada: boolean }[]>`
-          SELECT motorista_id, energia_wh, valor_centavos, status, parada_solicitada FROM recargas WHERE id = ${r.id}`;
+        const [f] = await sql<{ motorista_id: number | null; energia_wh: number; valor_centavos: number; status: string; parada_solicitada: boolean; ociosidade_status: string | null; ociosidade_min_centavos: number; ociosidade_tolerancia_min: number }[]>`
+          SELECT motorista_id, energia_wh, valor_centavos, status, parada_solicitada, ociosidade_status, ociosidade_min_centavos, ociosidade_tolerancia_min FROM recargas WHERE id = ${r.id}`;
         if (f?.motorista_id) {
           const titulo = f.parada_solicitada ? "Recarga encerrada: saldo acabou" : f.status === "interrompida" ? "Recarga interrompida" : "Recarga concluída";
-          avisarMotorista(f.motorista_id, titulo, `${(f.energia_wh / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} kWh · ${brl(f.valor_centavos)}. Toque para ver o recibo.`, `/recibo/${r.id}`);
+          const ocio = f.ociosidade_status === "aguardando"
+            ? ` Retire o carro em até ${f.ociosidade_tolerancia_min} min: depois disso é cobrado ${brl(f.ociosidade_min_centavos)} por minuto de ociosidade.`
+            : " Toque para ver o recibo.";
+          avisarMotorista(f.motorista_id, titulo, `${(f.energia_wh / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} kWh · ${brl(f.valor_centavos)}.${ocio}`, `/recibo/${r.id}`);
         }
       }
     }
@@ -475,5 +503,10 @@ export async function rotinaOffline() {
   for (const r of longas) {
     await abrirAviso("recarga_longa", { estacao: r.estacao_id, recarga: r.id }, `Recarga #${r.id} aberta há mais de 12 h`, `${r.nome}: confira o carregador ou pare a recarga pelo painel.`);
   }
+  // Ociosidade sem aviso de cabo retirado até o teto: fecha no teto.
+  const ociosas = await sql<{ id: number; estacao_id: number; conector_numero: number; ociosidade_desde: Date }[]>`
+    SELECT id, estacao_id, conector_numero, ociosidade_desde FROM recargas
+    WHERE ociosidade_status = 'aguardando' AND ociosidade_desde < now() - make_interval(mins => ${OCIOSIDADE_MAX_MIN})`;
+  for (const o of ociosas) await fecharOciosidade(o.estacao_id, o.conector_numero, new Date(o.ociosidade_desde.getTime() + OCIOSIDADE_MAX_MIN * 60_000));
   await sql`DELETE FROM ocpp_mensagens WHERE em < now() - interval '7 days'`;
 }

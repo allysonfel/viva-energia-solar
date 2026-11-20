@@ -54,6 +54,19 @@ export function FormEstacao({ parceiros, tarifas, tipos, sim }: { parceiros: { i
           <label htmlFor="custo">Custo da energia por kWh (R$)</label>
           <input className="input mono" id="custo" name="custo" defaultValue="0,85" maxLength={8} inputMode="decimal" />
         </div>
+        <div className="field">
+          <label htmlFor="ativacao">Taxa de ativação por recarga (R$)</label>
+          <input className="input mono" id="ativacao" name="ativacao" defaultValue="0,00" maxLength={8} inputMode="decimal" />
+        </div>
+        <div className="field">
+          <label htmlFor="ociosidade">Ociosidade por minuto (R$)</label>
+          <input className="input mono" id="ociosidade" name="ociosidade" defaultValue="0,00" maxLength={8} inputMode="decimal" />
+        </div>
+        <div className="field">
+          <label htmlFor="tolerancia">Tolerância antes da ociosidade (min)</label>
+          <input className="input mono" id="tolerancia" name="tolerancia" defaultValue="10" maxLength={3} inputMode="numeric" />
+        </div>
+        <div className="field full muted" style={{ fontSize: 12.5, marginTop: -4 }}>Ativação: valor fixo somado a cada recarga (ex.: aluguel da vaga), só quando houve energia entregue. Ociosidade: cobrada por minuto do saldo do motorista quando o carro continua plugado depois do fim da recarga, passada a tolerância (até 4 h). Deixe 0 para não cobrar.</div>
         <div className="field full">
           <label htmlFor="parceiro">Parceiro / local</label>
           <select className="input" id="parceiro" name="parceiro" defaultValue="">

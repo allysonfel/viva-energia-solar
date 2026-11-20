@@ -13,6 +13,10 @@ export type EstacaoApp = {
   lat: number | null;
   lng: number | null;
   preco_kwh_centavos: number;
+  // Taxas da estação (0 = não cobra): ativação por recarga e ociosidade por minuto.
+  taxa_ativacao_centavos: number;
+  ociosidade_min_centavos: number;
+  ociosidade_tolerancia_min: number;
   // Tarifa do horário atual (faixas) ou o preço da estação.
   preco_agora: number;
   tarifa_nome: string | null;
@@ -25,6 +29,7 @@ export type EstacaoApp = {
 export async function estacoesDoMapa(codigo?: string): Promise<EstacaoApp[]> {
   const rows = await sql<(Omit<EstacaoApp, "situacao" | "conectores"> & { conectada: boolean; habilitada: boolean; status_geral: string; conectores: { numero: number; tipo: string; potencia_w: number; status: string }[] | null })[]>`
     SELECT e.id, e.codigo, e.nome, e.endereco, e.bairro, e.cidade, e.lat, e.lng, e.preco_kwh_centavos, e.conectada, e.habilitada, e.status_geral,
+      e.taxa_ativacao_centavos, e.ociosidade_min_centavos, e.ociosidade_tolerancia_min,
       (SELECT json_agg(json_build_object('numero', c.numero, 'tipo', c.tipo, 'potencia_w', c.potencia_w, 'status', c.status) ORDER BY c.numero)
         FROM conectores c WHERE c.estacao_id = e.id) AS conectores
     FROM estacoes e
@@ -64,12 +69,19 @@ export type RecargaApp = {
   preco_cheio_centavos: number | null;
   desconto_pct: number;
   voucher: string | null;
+  taxa_ativacao_centavos: number;
+  ociosidade_min_centavos: number;
+  ociosidade_tolerancia_min: number;
+  ociosidade_status: string | null;
+  ociosidade_minutos: number;
+  ociosidade_centavos: number;
 };
 
 const COLUNAS = sql`
   r.id, e.nome AS estacao, e.codigo AS estacao_codigo, r.conector_numero, c.tipo || ' ' || (c.potencia_w / 1000) || ' kW' AS conector,
   r.status, r.inicio, r.fim, r.energia_wh, r.potencia_w, r.soc, r.valor_centavos, r.preco_kwh_centavos, r.motivo_fim, r.parada_solicitada,
-  r.tarifa_nome, r.preco_cheio_centavos, r.desconto_pct, v.codigo AS voucher`;
+  r.tarifa_nome, r.preco_cheio_centavos, r.desconto_pct, v.codigo AS voucher,
+  r.taxa_ativacao_centavos, r.ociosidade_min_centavos, r.ociosidade_tolerancia_min, r.ociosidade_status, r.ociosidade_minutos, r.ociosidade_centavos`;
 const ORIGEM = sql`
   FROM recargas r JOIN estacoes e ON e.id = r.estacao_id
   LEFT JOIN vouchers v ON v.id = r.voucher_id

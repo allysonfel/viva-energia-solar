@@ -39,11 +39,22 @@ export default async function Recibo({ params }: { params: Promise<{ id: string 
           <div><span className="muted">Tarifa{r.tarifa_nome ? ` ${r.tarifa_nome.toLowerCase()}` : ""}</span><span>{brl(r.preco_cheio_centavos ?? r.preco_kwh_centavos)}/kWh</span></div>
           {r.voucher && <div><span className="muted">Voucher {r.voucher}</span><span>-{r.desconto_pct}% · {brl(r.preco_kwh_centavos)}/kWh</span></div>}
           {r.motivo_fim && <div><span className="muted">Fim</span><span>{r.parada_solicitada ? "Saldo da carteira acabou" : MOTIVO[r.motivo_fim] ?? r.motivo_fim}</span></div>}
+          {(r.taxa_ativacao_centavos > 0 && r.energia_wh > 0) || r.ociosidade_centavos > 0 || r.ociosidade_status === "aguardando" ? (
+            <>
+              <div><span className="muted">Energia</span><span>{brl(r.valor_centavos - (r.energia_wh > 0 ? r.taxa_ativacao_centavos : 0) - r.ociosidade_centavos)}</span></div>
+              {r.taxa_ativacao_centavos > 0 && r.energia_wh > 0 && <div><span className="muted">Taxa de ativação</span><span>{brl(r.taxa_ativacao_centavos)}</span></div>}
+              {r.ociosidade_status === "aguardando" && <div><span className="muted">Ociosidade</span><span>calculando...</span></div>}
+              {r.ociosidade_status === "cobrada" && r.ociosidade_centavos > 0 && <div><span className="muted">Ociosidade ({r.ociosidade_minutos} min)</span><span>{brl(r.ociosidade_centavos)}</span></div>}
+            </>
+          ) : null}
           <div><span className="muted">CO₂ evitado</span><span>{kwh(r.energia_wh * CO2_POR_KWH)} kg</span></div>
           <div><span>Total</span><span>{brl(r.valor_centavos)}</span></div>
         </div>
       </div>
-      {interrompida && <div className="aviso alerta" style={{ marginTop: 12 }}>Você pagou só a energia entregue. Se precisar, fale com a gente em Ajuda.</div>}
+      {interrompida && <div className="aviso alerta" style={{ marginTop: 12 }}>Você pagou só pelo que foi entregue. Se precisar, fale com a gente em Ajuda.</div>}
+      {r.ociosidade_status === "aguardando" && (
+        <div className="aviso alerta" style={{ marginTop: 12 }}>Retire o carro do carregador{r.ociosidade_tolerancia_min ? ` em até ${r.ociosidade_tolerancia_min} min depois do fim` : ""}. Depois disso é cobrado {brl(r.ociosidade_min_centavos)} por minuto de ociosidade.</div>
+      )}
       <div className="box" style={{ marginTop: 12 }}>
         <div className="between"><span className="muted">Saldo na carteira</span><b className="mono">{brl(m.saldo_centavos)}</b></div>
       </div>

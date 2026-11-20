@@ -13,11 +13,13 @@ export async function GET(req: Request) {
   if (!u || parceiroDoEscopo(u) || !u.abas.includes("recargas")) return new Response("proibido", { status: 403 });
   const f = lerFiltro(Object.fromEntries(new URL(req.url).searchParams));
   const { linhas } = await buscarRecargas(f, null, 20_000, 1);
-  const cab = ["Recarga", "Estação", "Conector", "Cartão", "Cliente", "Origem", "Status", "Início", "Fim", "kWh", "Valor (R$)", "Motivo do fim"];
+  const cab = ["Recarga", "Estação", "Conector", "Cartão", "Cliente", "Origem", "Status", "Início", "Fim", "kWh", "Energia (R$)", "Ativação (R$)", "Ociosidade (min)", "Ociosidade (R$)", "Valor total (R$)", "Motivo do fim"];
+  const rs = (c: number) => (c / 100).toFixed(2).replace(".", ",");
   const fmt = (d: Date | null) => (d ? new Date(d).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" }) : "");
   const corpo = linhas.map((r) =>
     [r.id, r.estacao, `${r.conector_numero} ${r.conector ?? ""}`.trim(), r.id_tag, r.motorista ?? "", r.origem, r.status, fmt(r.inicio), fmt(r.fim),
-      (r.energia_wh / 1000).toFixed(3).replace(".", ","), (r.valor_centavos / 100).toFixed(2).replace(".", ","), r.motivo_fim ?? ""]
+      (r.energia_wh / 1000).toFixed(3).replace(".", ","), rs(r.valor_centavos - r.ativacao_centavos - r.ociosidade_centavos), rs(r.ativacao_centavos),
+      r.ociosidade_minutos || "", rs(r.ociosidade_centavos), rs(r.valor_centavos), r.motivo_fim ?? ""]
       .map(celulaCsv).join(";"),
   );
   await audit(`usuario:${u.id}`, "recargas_exportadas", null, null, `${linhas.length} linhas`);

@@ -34,7 +34,7 @@ export default async function Clientes({ searchParams }: { searchParams: Promise
     FROM motoristas`;
   const [mes] = await sql<{ entrou: number; gasto: number }[]>`
     SELECT coalesce(sum(valor_centavos) FILTER (WHERE tipo = 'credito'), 0)::bigint AS entrou,
-      coalesce(-sum(valor_centavos) FILTER (WHERE tipo = 'recarga'), 0)::bigint AS gasto
+      coalesce(-sum(valor_centavos) FILTER (WHERE tipo IN ('recarga', 'ociosidade')), 0)::bigint AS gasto
     FROM carteira_movimentos
     WHERE criado_em >= date_trunc('month', now() AT TIME ZONE 'America/Recife') AT TIME ZONE 'America/Recife'`;
   const pg = (n: number) => `/painel/clientes?${new URLSearchParams({ ...(busca ? { q: busca } : {}), pg: String(n) })}`;

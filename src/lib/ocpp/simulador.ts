@@ -176,10 +176,20 @@ async function terminar(v: Virtual, c: Conector, motivo: string) {
   c.tx = null;
   await chamar(v, "StopTransaction", { transactionId: tx.id, meterStop: v.medidorWh, timestamp: new Date().toISOString(), reason: motivo, idTag: tx.idTag });
   anotar(v, `Recarga #${tx.id} encerrada (${motivo})`);
-  if (motivo !== "Other") {
-    await status(v, c.numero, "Finishing");
+  if (motivo === "EVDisconnected") {
+    // Cabo já saiu do carro: conector livre na hora.
     c.carro = null;
     await status(v, c.numero, v.inoperante ? "Unavailable" : "Available");
+  } else if (motivo !== "Other") {
+    // Como na vida real: a recarga acaba e o carro fica plugado mais um pouco
+    // (Finishing) até o motorista voltar. Sai sozinho em 1 a 6 min, ou antes
+    // pelo botão "Tirar o carro" do Simulador. É o tempo da taxa de ociosidade.
+    await status(v, c.numero, "Finishing");
+    const carro = c.carro;
+    const t = setTimeout(() => {
+      if (c.carro === carro && !c.tx) desplugar(v.codigo, c.numero).catch(() => {});
+    }, (60 + Math.random() * 300) * 1000);
+    t.unref?.();
   }
 }
 

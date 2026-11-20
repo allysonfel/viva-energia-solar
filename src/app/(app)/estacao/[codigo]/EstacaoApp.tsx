@@ -56,7 +56,7 @@ export function EstacaoApp({ e, conectorInicial, saldo, saldoMinimo, meusConecto
   const maxKw = Math.max(0, ...e.conectores.map((x) => x.potencia_w));
   const pct = vouchers.find((v) => v.mv === voucher)?.pct ?? 0;
   const preco = Math.round((e.preco_agora * (100 - pct)) / 100);
-  const estimativa = Math.round(30 * preco);
+  const estimativa = Math.round(30 * preco) + e.taxa_ativacao_centavos;
   const rota = e.lat !== null && e.lng !== null ? `https://www.google.com/maps/dir/?api=1&destination=${e.lat},${e.lng}` : null;
 
   if (esperando)
@@ -180,7 +180,16 @@ export function EstacaoApp({ e, conectorInicial, saldo, saldoMinimo, meusConecto
                 <div className="between" style={{ marginBottom: 8 }}><span className="muted">Você paga</span><b className="mono">{brl(preco)}/kWh</b></div>
               </>
             )}
+            {e.taxa_ativacao_centavos > 0 && (
+              <div className="between" style={{ marginBottom: 8 }}><span className="muted">Taxa de ativação</span><b className="mono">{brl(e.taxa_ativacao_centavos)}</b></div>
+            )}
+            {e.ociosidade_min_centavos > 0 && (
+              <div className="between" style={{ marginBottom: 8 }}><span className="muted">Ociosidade{e.ociosidade_tolerancia_min ? ` após ${e.ociosidade_tolerancia_min} min` : ""}</span><b className="mono">{brl(e.ociosidade_min_centavos)}/min</b></div>
+            )}
             <div className="between"><span className="muted">Estimativa para 30 kWh</span><b className="mono">{brl(estimativa)}</b></div>
+            {e.ociosidade_min_centavos > 0 && (
+              <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>Quando a recarga terminar, retire o carro{e.ociosidade_tolerancia_min ? ` em até ${e.ociosidade_tolerancia_min} min` : ""}: depois disso, cada minuto com o carro plugado é descontado da carteira.</div>
+            )}
           </div>
           <div className="box">
             <div className="box-title">Pagamento</div>

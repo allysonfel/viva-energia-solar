@@ -15,7 +15,7 @@ export default async function Carteira({ searchParams }: { searchParams: Promise
   const s = await getSettings();
   const [mes] = await sql<{ gasto: number }[]>`
     SELECT coalesce(-sum(valor_centavos), 0)::bigint AS gasto FROM carteira_movimentos
-    WHERE motorista_id = ${m.id} AND tipo = 'recarga' AND criado_em >= date_trunc('month', now() AT TIME ZONE 'America/Sao_Paulo') AT TIME ZONE 'America/Sao_Paulo'`;
+    WHERE motorista_id = ${m.id} AND tipo IN ('recarga', 'ociosidade') AND criado_em >= date_trunc('month', now() AT TIME ZONE 'America/Sao_Paulo') AT TIME ZONE 'America/Sao_Paulo'`;
   const extrato = await sql<{ id: number; tipo: string; valor_centavos: number; descricao: string; criado_em: Date; recarga_id: number | null }[]>`
     SELECT id, tipo, valor_centavos, descricao, criado_em, recarga_id FROM carteira_movimentos WHERE motorista_id = ${m.id} ORDER BY id DESC LIMIT 20`;
   const vouchers = await sql<{ codigo: string; pct: number; descricao: string; estacao: string | null; valido_ate: Date | null; usado: boolean }[]>`

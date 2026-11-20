@@ -32,15 +32,24 @@ function lerDados(fd: FormData) {
   const preco = centavosDe(fd.get("preco"));
   const custo = fd.get("custo") ? centavosDe(fd.get("custo")) : 0;
   const parceiro = Number(fd.get("parceiro")) || null;
+  // Taxas por recarga (pedido do Miguel): vazio = sem taxa.
+  const ativacao = fd.get("ativacao") ? centavosDe(fd.get("ativacao")) : 0;
+  const ociosidade = fd.get("ociosidade") ? centavosDe(fd.get("ociosidade")) : 0;
+  const toleranciaTxt = texto(fd, "tolerancia", 4);
+  const tolerancia = toleranciaTxt === "" ? 10 : /^\d{1,3}$/.test(toleranciaTxt) ? Number(toleranciaTxt) : -1;
   if (nome.length < 2) return { erro: "Informe o nome da estação." };
   if (lat === "erro" || lng === "erro") return { erro: "Coordenadas inválidas." };
   if ((lat === null) !== (lng === null)) return { erro: "Informe latitude e longitude juntas." };
   if (preco === null || preco < 1 || preco > 10000) return { erro: "Preço por kWh inválido." };
   if (custo === null || custo > 10000) return { erro: "Custo por kWh inválido." };
+  if (ativacao === null || ativacao > 10000) return { erro: "Taxa de ativação inválida (até R$ 100,00)." };
+  if (ociosidade === null || ociosidade > 2000) return { erro: "Taxa de ociosidade inválida (até R$ 20,00 por minuto)." };
+  if (tolerancia < 0 || tolerancia > 240) return { erro: "Tolerância da ociosidade inválida (0 a 240 minutos)." };
   return {
     dados: {
       nome, endereco: texto(fd, "endereco", 160), bairro: texto(fd, "bairro", 60), cidade: texto(fd, "cidade", 60),
       lat, lng, preco_kwh_centavos: preco, custo_kwh_centavos: custo, parceiro_id: parceiro,
+      taxa_ativacao_centavos: ativacao, ociosidade_min_centavos: ociosidade, ociosidade_tolerancia_min: tolerancia,
     },
   };
 }
@@ -91,9 +100,11 @@ export async function criarEstacao(_: RespostaEstacao, fd: FormData): Promise<Re
   const d = r.dados;
   const id = await sql.begin(async (tx) => {
     const [e] = await tx<{ id: number }[]>`
-      INSERT INTO estacoes (codigo, nome, endereco, bairro, cidade, lat, lng, preco_kwh_centavos, custo_kwh_centavos, parceiro_id, simulada, ocpp_senha_hash, ocpp_chave_hash, ocpp_chave_cifrada)
+      INSERT INTO estacoes (codigo, nome, endereco, bairro, cidade, lat, lng, preco_kwh_centavos, custo_kwh_centavos, parceiro_id, simulada, ocpp_senha_hash, ocpp_chave_hash, ocpp_chave_cifrada,
+        taxa_ativacao_centavos, ociosidade_min_centavos, ociosidade_tolerancia_min)
       VALUES (${codigo}, ${d.nome}, ${d.endereco}, ${d.bairro}, ${d.cidade}, ${d.lat}, ${d.lng}, ${d.preco_kwh_centavos}, ${d.custo_kwh_centavos},
-        ${d.parceiro_id}, ${simulada}, ${senha ? hashPassword(senha) : null}, ${chave ? hashChave(chave) : null}, ${chave ? cifrarChave(chave) : null})
+        ${d.parceiro_id}, ${simulada}, ${senha ? hashPassword(senha) : null}, ${chave ? hashChave(chave) : null}, ${chave ? cifrarChave(chave) : null},
+        ${d.taxa_ativacao_centavos}, ${d.ociosidade_min_centavos}, ${d.ociosidade_tolerancia_min})
       RETURNING id`;
     for (const [i, c] of conectores.entries()) {
       await tx`INSERT INTO conectores (estacao_id, numero, tipo, potencia_w) VALUES (${e.id}, ${i + 1}, ${c.tipo}, ${c.w})`;
@@ -121,7 +132,8 @@ export async function editarEstacao(fd: FormData) {
   await sql.begin(async (tx) => {
     await tx`
       UPDATE estacoes SET nome = ${d.nome}, endereco = ${d.endereco}, bairro = ${d.bairro}, cidade = ${d.cidade}, lat = ${d.lat}, lng = ${d.lng},
-        preco_kwh_centavos = ${d.preco_kwh_centavos}, custo_kwh_centavos = ${d.custo_kwh_centavos}, parceiro_id = ${d.parceiro_id}
+        preco_kwh_centavos = ${d.preco_kwh_centavos}, custo_kwh_centavos = ${d.custo_kwh_centavos}, parceiro_id = ${d.parceiro_id},
+        taxa_ativacao_centavos = ${d.taxa_ativacao_centavos}, ociosidade_min_centavos = ${d.ociosidade_min_centavos}, ociosidade_tolerancia_min = ${d.ociosidade_tolerancia_min}
       WHERE id = ${id}`;
     await tx`DELETE FROM estacao_tarifas WHERE estacao_id = ${id}`;
     for (const t of tarifas.ids) await tx`INSERT INTO estacao_tarifas (estacao_id, tarifa_id) VALUES (${id}, ${t})`;
