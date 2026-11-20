@@ -54,19 +54,21 @@ export function FormEstacao({ parceiros, tarifas, tipos, sim }: { parceiros: { i
           <label htmlFor="custo">Custo da energia por kWh (R$)</label>
           <input className="input mono" id="custo" name="custo" defaultValue="0,85" maxLength={8} inputMode="decimal" />
         </div>
-        <div className="field">
-          <label htmlFor="ativacao">Taxa de ativação por recarga (R$)</label>
-          <input className="input mono" id="ativacao" name="ativacao" defaultValue="0,00" maxLength={8} inputMode="decimal" />
+        <div className="field full taxa-grupo">
+          <label className="taxa-chave"><input type="checkbox" name="cobra_ativacao" defaultChecked={true} /><span className="toggle" />Cobrar taxa de ativação</label>
+          <div className="taxa-campos">
+            <div className="field"><label>Valor por recarga (R$)</label><input className="input mono" name="ativacao" maxLength={8} inputMode="decimal" defaultValue={"0,00"} /></div>
+            <p className="muted taxa-dica">Valor fixo somado a cada recarga (ex.: aluguel da vaga). Só é cobrado quando o carro chegou a carregar. Com R$ 0,00 não cobra nada.</p>
+          </div>
         </div>
-        <div className="field">
-          <label htmlFor="ociosidade">Ociosidade por minuto (R$)</label>
-          <input className="input mono" id="ociosidade" name="ociosidade" defaultValue="0,00" maxLength={8} inputMode="decimal" />
+        <div className="field full taxa-grupo">
+          <label className="taxa-chave"><input type="checkbox" name="cobra_ociosidade" defaultChecked={false} /><span className="toggle" />Cobrar ociosidade</label>
+          <div className="taxa-campos">
+            <div className="field"><label>Valor por minuto (R$)</label><input className="input mono" name="ociosidade" maxLength={8} inputMode="decimal" defaultValue={"0,00"} /></div>
+            <div className="field"><label>Tolerância depois do fim (min)</label><input className="input mono" name="tolerancia" maxLength={3} inputMode="numeric" defaultValue={10} /></div>
+            <p className="muted taxa-dica">Cobrado do saldo do motorista por minuto com o carro ainda plugado depois do fim da recarga, passada a tolerância (no máximo 4 h).</p>
+          </div>
         </div>
-        <div className="field">
-          <label htmlFor="tolerancia">Tolerância antes da ociosidade (min)</label>
-          <input className="input mono" id="tolerancia" name="tolerancia" defaultValue="10" maxLength={3} inputMode="numeric" />
-        </div>
-        <div className="field full muted" style={{ fontSize: 12.5, marginTop: -4 }}>Ativação: valor fixo somado a cada recarga (ex.: aluguel da vaga), só quando houve energia entregue. Ociosidade: cobrada por minuto do saldo do motorista quando o carro continua plugado depois do fim da recarga, passada a tolerância (até 4 h). Deixe 0 para não cobrar.</div>
         <div className="field full">
           <label htmlFor="parceiro">Parceiro / local</label>
           <select className="input" id="parceiro" name="parceiro" defaultValue="">

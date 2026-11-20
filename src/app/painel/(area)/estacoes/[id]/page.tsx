@@ -50,9 +50,9 @@ export default async function Estacao({ params, searchParams }: {
   const admin = u.perfil === "admin";
   const operar = podeOperar(u);
 
-  const [det] = await sql<{ fabricante: string; modelo: string; firmware: string; numero_serie: string; lat: number | null; lng: number | null; preco_kwh_centavos: number; custo_kwh_centavos: number; parceiro_id: number | null; conectada_em: Date | null; taxa_ativacao_centavos: number; ociosidade_min_centavos: number; ociosidade_tolerancia_min: number }[]>`
+  const [det] = await sql<{ fabricante: string; modelo: string; firmware: string; numero_serie: string; lat: number | null; lng: number | null; preco_kwh_centavos: number; custo_kwh_centavos: number; parceiro_id: number | null; conectada_em: Date | null; taxa_ativacao_centavos: number; ociosidade_min_centavos: number; ociosidade_tolerancia_min: number; cobra_ativacao: boolean; cobra_ociosidade: boolean }[]>`
     SELECT fabricante, modelo, firmware, numero_serie, lat, lng, preco_kwh_centavos, custo_kwh_centavos, parceiro_id, conectada_em,
-      taxa_ativacao_centavos, ociosidade_min_centavos, ociosidade_tolerancia_min FROM estacoes WHERE id = ${id}`;
+      taxa_ativacao_centavos, ociosidade_min_centavos, ociosidade_tolerancia_min, cobra_ativacao, cobra_ociosidade FROM estacoes WHERE id = ${id}`;
   const andamento = await sql<{ id: number; conector_numero: number; inicio: Date; energia_wh: number; potencia_w: number; soc: number | null; valor_centavos: number; origem: string; motorista: string | null }[]>`
     SELECT r.id, r.conector_numero, r.inicio, r.energia_wh, r.potencia_w, r.soc, r.valor_centavos, r.origem, NULL AS motorista
     FROM recargas r WHERE r.estacao_id = ${id} AND r.status = 'em_andamento' ORDER BY r.conector_numero`;
@@ -303,10 +303,21 @@ export default async function Estacao({ params, searchParams }: {
                     <div className="field"><label>Longitude</label><input className="input mono" name="lng" maxLength={20} defaultValue={det.lng ?? ""} /></div>
                     <div className="field"><label>Preço por kWh (R$) fora das tarifas</label><input className="input mono" name="preco" required maxLength={8} defaultValue={real(det.preco_kwh_centavos)} /></div>
                     <div className="field"><label>Custo por kWh (R$)</label><input className="input mono" name="custo" maxLength={8} defaultValue={real(det.custo_kwh_centavos)} /></div>
-                    <div className="field"><label>Taxa de ativação por recarga (R$)</label><input className="input mono" name="ativacao" maxLength={8} inputMode="decimal" defaultValue={real(det.taxa_ativacao_centavos)} /></div>
-                    <div className="field"><label>Ociosidade por minuto (R$)</label><input className="input mono" name="ociosidade" maxLength={8} inputMode="decimal" defaultValue={real(det.ociosidade_min_centavos)} /></div>
-                    <div className="field"><label>Tolerância antes da ociosidade (min)</label><input className="input mono" name="tolerancia" maxLength={3} inputMode="numeric" defaultValue={det.ociosidade_tolerancia_min} /></div>
-                    <div className="field full muted" style={{ fontSize: 12.5, marginTop: -4 }}>Ativação: valor fixo somado a cada recarga (ex.: aluguel da vaga), só quando houve energia entregue. Ociosidade: cobrada por minuto do saldo do motorista quando o carro continua plugado depois do fim da recarga, passada a tolerância (até 4 h). Deixe 0 para não cobrar.</div>
+                    <div className="field full taxa-grupo">
+                      <label className="taxa-chave"><input type="checkbox" name="cobra_ativacao" defaultChecked={det.cobra_ativacao} /><span className="toggle" />Cobrar taxa de ativação</label>
+                      <div className="taxa-campos">
+                        <div className="field"><label>Valor por recarga (R$)</label><input className="input mono" name="ativacao" maxLength={8} inputMode="decimal" defaultValue={real(det.taxa_ativacao_centavos)} /></div>
+                        <p className="muted taxa-dica">Valor fixo somado a cada recarga (ex.: aluguel da vaga). Só é cobrado quando o carro chegou a carregar. Com R$ 0,00 não cobra nada.</p>
+                      </div>
+                    </div>
+                    <div className="field full taxa-grupo">
+                      <label className="taxa-chave"><input type="checkbox" name="cobra_ociosidade" defaultChecked={det.cobra_ociosidade} /><span className="toggle" />Cobrar ociosidade</label>
+                      <div className="taxa-campos">
+                        <div className="field"><label>Valor por minuto (R$)</label><input className="input mono" name="ociosidade" maxLength={8} inputMode="decimal" defaultValue={real(det.ociosidade_min_centavos)} /></div>
+                        <div className="field"><label>Tolerância depois do fim (min)</label><input className="input mono" name="tolerancia" maxLength={3} inputMode="numeric" defaultValue={det.ociosidade_tolerancia_min} /></div>
+                        <p className="muted taxa-dica">Cobrado do saldo do motorista por minuto com o carro ainda plugado depois do fim da recarga, passada a tolerância (no máximo 4 h).</p>
+                      </div>
+                    </div>
                     <div className="field full">
                       <label>Parceiro / local</label>
                       <select className="input" name="parceiro" defaultValue={det.parceiro_id ?? ""}>

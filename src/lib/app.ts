@@ -29,7 +29,8 @@ export type EstacaoApp = {
 export async function estacoesDoMapa(codigo?: string): Promise<EstacaoApp[]> {
   const rows = await sql<(Omit<EstacaoApp, "situacao" | "conectores"> & { conectada: boolean; habilitada: boolean; status_geral: string; conectores: { numero: number; tipo: string; potencia_w: number; status: string }[] | null })[]>`
     SELECT e.id, e.codigo, e.nome, e.endereco, e.bairro, e.cidade, e.lat, e.lng, e.preco_kwh_centavos, e.conectada, e.habilitada, e.status_geral,
-      e.taxa_ativacao_centavos, e.ociosidade_min_centavos, e.ociosidade_tolerancia_min,
+      CASE WHEN e.cobra_ativacao THEN e.taxa_ativacao_centavos ELSE 0 END AS taxa_ativacao_centavos,
+      CASE WHEN e.cobra_ociosidade THEN e.ociosidade_min_centavos ELSE 0 END AS ociosidade_min_centavos, e.ociosidade_tolerancia_min,
       (SELECT json_agg(json_build_object('numero', c.numero, 'tipo', c.tipo, 'potencia_w', c.potencia_w, 'status', c.status) ORDER BY c.numero)
         FROM conectores c WHERE c.estacao_id = e.id) AS conectores
     FROM estacoes e

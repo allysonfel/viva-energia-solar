@@ -317,7 +317,10 @@ const HANDLERS: Record<string, Handler> = {
     const daIntencao = intencao && intencao.idTag === idTag && intencao.expira > Date.now() ? intencao : null;
     if (daIntencao) estado.intencoes.delete(chave);
     const [e] = await sql<{ preco_kwh_centavos: number; custo_kwh_centavos: number; taxa_ativacao_centavos: number; ociosidade_min_centavos: number; ociosidade_tolerancia_min: number }[]>`
-      SELECT preco_kwh_centavos, custo_kwh_centavos, taxa_ativacao_centavos, ociosidade_min_centavos, ociosidade_tolerancia_min FROM estacoes WHERE id = ${c.estacaoId}`;
+      SELECT preco_kwh_centavos, custo_kwh_centavos,
+        CASE WHEN cobra_ativacao THEN taxa_ativacao_centavos ELSE 0 END AS taxa_ativacao_centavos,
+        CASE WHEN cobra_ociosidade THEN ociosidade_min_centavos ELSE 0 END AS ociosidade_min_centavos,
+        ociosidade_tolerancia_min FROM estacoes WHERE id = ${c.estacaoId}`;
     // Outro carro começou no conector: a ociosidade do anterior acaba aqui.
     await fecharOciosidade(c.estacaoId, n, inicio);
     // Tarifa do horário de início; voucher (se o motorista escolheu) aplicado em %.

@@ -50,6 +50,7 @@ function lerDados(fd: FormData) {
       nome, endereco: texto(fd, "endereco", 160), bairro: texto(fd, "bairro", 60), cidade: texto(fd, "cidade", 60),
       lat, lng, preco_kwh_centavos: preco, custo_kwh_centavos: custo, parceiro_id: parceiro,
       taxa_ativacao_centavos: ativacao, ociosidade_min_centavos: ociosidade, ociosidade_tolerancia_min: tolerancia,
+      cobra_ativacao: fd.get("cobra_ativacao") === "on", cobra_ociosidade: fd.get("cobra_ociosidade") === "on",
     },
   };
 }
@@ -101,10 +102,10 @@ export async function criarEstacao(_: RespostaEstacao, fd: FormData): Promise<Re
   const id = await sql.begin(async (tx) => {
     const [e] = await tx<{ id: number }[]>`
       INSERT INTO estacoes (codigo, nome, endereco, bairro, cidade, lat, lng, preco_kwh_centavos, custo_kwh_centavos, parceiro_id, simulada, ocpp_senha_hash, ocpp_chave_hash, ocpp_chave_cifrada,
-        taxa_ativacao_centavos, ociosidade_min_centavos, ociosidade_tolerancia_min)
+        taxa_ativacao_centavos, ociosidade_min_centavos, ociosidade_tolerancia_min, cobra_ativacao, cobra_ociosidade)
       VALUES (${codigo}, ${d.nome}, ${d.endereco}, ${d.bairro}, ${d.cidade}, ${d.lat}, ${d.lng}, ${d.preco_kwh_centavos}, ${d.custo_kwh_centavos},
         ${d.parceiro_id}, ${simulada}, ${senha ? hashPassword(senha) : null}, ${chave ? hashChave(chave) : null}, ${chave ? cifrarChave(chave) : null},
-        ${d.taxa_ativacao_centavos}, ${d.ociosidade_min_centavos}, ${d.ociosidade_tolerancia_min})
+        ${d.taxa_ativacao_centavos}, ${d.ociosidade_min_centavos}, ${d.ociosidade_tolerancia_min}, ${d.cobra_ativacao}, ${d.cobra_ociosidade})
       RETURNING id`;
     for (const [i, c] of conectores.entries()) {
       await tx`INSERT INTO conectores (estacao_id, numero, tipo, potencia_w) VALUES (${e.id}, ${i + 1}, ${c.tipo}, ${c.w})`;
@@ -133,7 +134,8 @@ export async function editarEstacao(fd: FormData) {
     await tx`
       UPDATE estacoes SET nome = ${d.nome}, endereco = ${d.endereco}, bairro = ${d.bairro}, cidade = ${d.cidade}, lat = ${d.lat}, lng = ${d.lng},
         preco_kwh_centavos = ${d.preco_kwh_centavos}, custo_kwh_centavos = ${d.custo_kwh_centavos}, parceiro_id = ${d.parceiro_id},
-        taxa_ativacao_centavos = ${d.taxa_ativacao_centavos}, ociosidade_min_centavos = ${d.ociosidade_min_centavos}, ociosidade_tolerancia_min = ${d.ociosidade_tolerancia_min}
+        taxa_ativacao_centavos = ${d.taxa_ativacao_centavos}, ociosidade_min_centavos = ${d.ociosidade_min_centavos}, ociosidade_tolerancia_min = ${d.ociosidade_tolerancia_min},
+        cobra_ativacao = ${d.cobra_ativacao}, cobra_ociosidade = ${d.cobra_ociosidade}
       WHERE id = ${id}`;
     await tx`DELETE FROM estacao_tarifas WHERE estacao_id = ${id}`;
     for (const t of tarifas.ids) await tx`INSERT INTO estacao_tarifas (estacao_id, tarifa_id) VALUES (${id}, ${t})`;

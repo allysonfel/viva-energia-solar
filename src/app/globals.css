@@ -237,6 +237,16 @@ h1,h2,h3{font-family:var(--display);font-stretch:112%;letter-spacing:-.01em;line
 .toggle::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.2)}
 .toggle.on{background:var(--g600)}
 .toggle.on::after{left:21px}
+/* Chave liga/desliga das taxas da estação (checkbox de verdade, sem JS) */
+.taxa-grupo{border:1px solid var(--line);border-radius:14px;padding:12px 14px}
+.taxa-chave{display:flex;align-items:center;gap:10px;font-weight:700;cursor:pointer;margin:0}
+.taxa-chave input{position:absolute;opacity:0;width:1px;height:1px}
+.taxa-chave input:checked+.toggle{background:var(--g600)}
+.taxa-chave input:checked+.toggle::after{left:21px}
+.taxa-chave input:focus-visible+.toggle{outline:2px solid var(--g600);outline-offset:2px}
+.taxa-campos{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px 14px;margin-top:12px}
+.taxa-grupo:has(input[type=checkbox]:not(:checked)) .taxa-campos{display:none}
+.taxa-dica{grid-column:1/-1;font-size:12.5px;margin:0}
 .demo-chave{display:flex;align-items:center;justify-content:flex-end;gap:12px;margin-bottom:16px}
 .demo-chave .muted{font-size:13px}
 .demo-btn{display:inline-flex;align-items:center;gap:10px;height:40px;padding:0 8px 0 14px;border-radius:12px;background:var(--card);border:1px solid var(--line);font-weight:700;font-size:13px;color:var(--ink);white-space:nowrap}

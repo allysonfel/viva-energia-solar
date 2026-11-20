@@ -400,6 +400,11 @@ ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS abas TEXT[];
 ALTER TABLE estacoes ADD COLUMN IF NOT EXISTS taxa_ativacao_centavos INT NOT NULL DEFAULT 0 CHECK (taxa_ativacao_centavos >= 0);
 ALTER TABLE estacoes ADD COLUMN IF NOT EXISTS ociosidade_min_centavos INT NOT NULL DEFAULT 0 CHECK (ociosidade_min_centavos >= 0);
 ALTER TABLE estacoes ADD COLUMN IF NOT EXISTS ociosidade_tolerancia_min INT NOT NULL DEFAULT 10 CHECK (ociosidade_tolerancia_min BETWEEN 0 AND 240);
+-- Chaves liga/desliga no cadastro (decisão do André, 2026-11-20): ativação começa
+-- ligada (com valor 0 não cobra nada); ociosidade começa desligada. Com a chave
+-- desligada o valor fica guardado, mas não é cobrado nem aparece no app.
+ALTER TABLE estacoes ADD COLUMN IF NOT EXISTS cobra_ativacao BOOLEAN NOT NULL DEFAULT true;
+ALTER TABLE estacoes ADD COLUMN IF NOT EXISTS cobra_ociosidade BOOLEAN NOT NULL DEFAULT false;
 -- Na recarga ficam os valores do início (mudar a estação depois não muda recarga já feita).
 -- valor_centavos continua sendo o TOTAL cobrado (energia + ativação + ociosidade).
 ALTER TABLE recargas ADD COLUMN IF NOT EXISTS taxa_ativacao_centavos INT NOT NULL DEFAULT 0;
