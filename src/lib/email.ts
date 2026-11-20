@@ -3,7 +3,7 @@
 // produção avisa que não enviou (a tela segue com mensagem genérica).
 import "server-only";
 
-export async function enviarEmail(para: string, assunto: string, texto: string): Promise<boolean> {
+export async function enviarEmail(para: string, assunto: string, texto: string, html?: string): Promise<boolean> {
   const chave = process.env.RESEND_API_KEY?.trim();
   const de = process.env.EMAIL_REMETENTE?.trim() || "Viva Energia <nao-responda@vivaenergia.local>";
   if (!chave) {
@@ -15,7 +15,7 @@ export async function enviarEmail(para: string, assunto: string, texto: string):
     const r = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: { Authorization: `Bearer ${chave}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ from: de, to: [para], subject: assunto, text: texto }),
+      body: JSON.stringify({ from: de, to: [para], subject: assunto, text: texto, ...(html ? { html } : {}) }),
       signal: AbortSignal.timeout(10_000),
     });
     if (!r.ok) console.error("[email] falha no envio:", r.status);

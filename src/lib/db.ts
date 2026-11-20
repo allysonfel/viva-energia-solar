@@ -405,6 +405,10 @@ ALTER TABLE estacoes ADD COLUMN IF NOT EXISTS ociosidade_tolerancia_min INT NOT 
 -- desligada o valor fica guardado, mas não é cobrado nem aparece no app.
 ALTER TABLE estacoes ADD COLUMN IF NOT EXISTS cobra_ativacao BOOLEAN NOT NULL DEFAULT true;
 ALTER TABLE estacoes ADD COLUMN IF NOT EXISTS cobra_ociosidade BOOLEAN NOT NULL DEFAULT false;
+-- Recibo por e-mail (2026-11-20). Nasce com now() para o histórico NÃO receber
+-- e-mail na primeira publicação; depois o padrão sai e recarga nova começa vazia.
+ALTER TABLE recargas ADD COLUMN IF NOT EXISTS recibo_email_em TIMESTAMPTZ DEFAULT now();
+ALTER TABLE recargas ALTER COLUMN recibo_email_em DROP DEFAULT;
 -- Na recarga ficam os valores do início (mudar a estação depois não muda recarga já feita).
 -- valor_centavos continua sendo o TOTAL cobrado (energia + ativação + ociosidade).
 ALTER TABLE recargas ADD COLUMN IF NOT EXISTS taxa_ativacao_centavos INT NOT NULL DEFAULT 0;

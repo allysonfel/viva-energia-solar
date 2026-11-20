@@ -15,6 +15,10 @@ import { abrirAviso, resolverAviso } from "../avisos";
 import { cobrarRecarga, cobrarOciosidade, OCIOSIDADE_MAX_MIN } from "../carteira";
 import { tarifasDaEstacao, precoNoHorario } from "../tarifas";
 import { avisarMotorista, avisarProgresso } from "../notificar";
+import { enviarReciboRecarga } from "../recibo-email";
+
+// Recibo por e-mail sem segurar a resposta ao carregador.
+const reciboEmail = (id: number) => void enviarReciboRecarga(id).catch((err) => console.error("[recibo] erro:", err instanceof Error ? err.message : err));
 import { brl } from "../format";
 import { lerFrame, lerMedidor, type Call } from "./tipos";
 
@@ -253,6 +257,7 @@ async function fecharOciosidade(estacaoId: number, conector: number, ate: Date) 
     SELECT id FROM recargas WHERE estacao_id = ${estacaoId} AND conector_numero = ${conector} AND ociosidade_status = 'aguardando'`;
   for (const a of abertas) {
     const r = await cobrarOciosidade(a.id, ate);
+    reciboEmail(a.id);
     if (r?.motorista && r.valor > 0)
       avisarMotorista(r.motorista, "Taxa de ociosidade", `O carro ficou ${r.minutos} min plugado além da tolerância depois do fim da recarga: ${brl(r.valor)} descontados da carteira.`, `/recibo/${a.id}`);
   }
@@ -357,7 +362,10 @@ const HANDLERS: Record<string, Handler> = {
       if (voucher) await tx`UPDATE motorista_vouchers SET recarga_id = ${r.id}, usado_em = now() WHERE id = ${voucher.mv}`;
       return { id: r.id, fechadas };
     });
-    for (const f of fechadas) await cobrarRecarga(f.id);
+    for (const f of fechadas) {
+      await cobrarRecarga(f.id);
+      reciboEmail(f.id);
+    }
     if (motoristaId) {
       const [x] = await sql<{ nome: string; preco: number; ativacao: number }[]>`SELECT e.nome, r.preco_kwh_centavos AS preco, r.taxa_ativacao_centavos AS ativacao FROM recargas r JOIN estacoes e ON e.id = r.estacao_id WHERE r.id = ${id}`;
       if (st === "Accepted") avisarMotorista(motoristaId, "Recarga iniciada", `${x?.nome ?? "Estação"} · conector ${n} · ${brl(x?.preco ?? 0)}/kWh${x?.ativacao ? ` + ${brl(x.ativacao)} de ativação` : ""}`, `/recarga/${id}`);
@@ -413,6 +421,7 @@ const HANDLERS: Record<string, Handler> = {
             ociosidade_desde = ${ocioso ? fim : null}, ociosidade_status = ${ocioso ? "aguardando" : null}, atualizado_em = now()
           WHERE id = ${r.id}`;
         await cobrarRecarga(r.id);
+        reciboEmail(r.id); // se a ociosidade ficou aberta, sai quando ela fechar
         await resolverAviso("recarga_longa", { estacao: c.estacaoId, recarga: r.id });
         const [f] = await sql<{ motorista_id: number | null; energia_wh: number; valor_centavos: number; status: string; parada_solicitada: boolean; ociosidade_status: string | null; ociosidade_min_centavos: number; ociosidade_tolerancia_min: number }[]>`
           SELECT motorista_id, energia_wh, valor_centavos, status, parada_solicitada, ociosidade_status, ociosidade_min_centavos, ociosidade_tolerancia_min FROM recargas WHERE id = ${r.id}`;
@@ -505,6 +514,13 @@ export async function rotinaOffline() {
     WHERE r.status = 'em_andamento' AND r.inicio < now() - interval '12 hours'`;
   for (const r of longas) {
     await abrirAviso("recarga_longa", { estacao: r.estacao_id, recarga: r.id }, `Recarga #${r.id} aberta há mais de 12 h`, `${r.nome}: confira o carregador ou pare a recarga pelo painel.`);
+  }
+  // Recibo que não saiu (Resend fora do ar): tenta de novo, só das últimas 6 h.
+  if (process.env.RESEND_API_KEY?.trim()) {
+    const pendentes = await sql<{ id: number }[]>`
+      SELECT id FROM recargas WHERE recibo_email_em IS NULL AND status IN ('concluida', 'interrompida') AND motorista_id IS NOT NULL
+        AND valor_centavos > 0 AND fim > now() - interval '6 hours' AND (ociosidade_status IS NULL OR ociosidade_status = 'cobrada') LIMIT 20`;
+    for (const p of pendentes) await enviarReciboRecarga(p.id).catch(() => {});
   }
   // Ociosidade sem aviso de cabo retirado até o teto: fecha no teto.
   const ociosas = await sql<{ id: number; estacao_id: number; conector_numero: number; ociosidade_desde: Date }[]>`
