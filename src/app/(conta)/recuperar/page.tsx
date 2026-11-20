@@ -4,8 +4,7 @@ import { createHash, randomBytes } from "crypto";
 import { sql, ensureSchema } from "@/lib/db";
 import { clientIp } from "@/lib/request";
 import { isBlocked, registerFailure } from "@/lib/limits";
-import { enviarEmail } from "@/lib/email";
-import { getSettings } from "@/lib/settings";
+import { enviarEmailRedefinirSenha } from "@/lib/email-conta";
 
 // Pede o link de redefinição. A resposta é sempre a mesma (não revela se o
 // e-mail tem conta). O token vale 30 minutos e só o hash fica no banco.
@@ -22,10 +21,7 @@ async function pedir(fd: FormData) {
     await sql`
       INSERT INTO recuperacao_senha (motorista_id, token_hash, expira_em)
       VALUES (${m.id}, ${createHash("sha256").update(token).digest("hex")}, now() + interval '30 minutes')`;
-    const s = await getSettings();
-    const base = (process.env.APP_URL ?? "").replace(/\/$/, "");
-    await enviarEmail(email, `${s.empresa}: redefinir senha`,
-      `Olá, ${m.nome.split(" ")[0]}.\n\nPara criar uma senha nova, abra o link abaixo (vale por 30 minutos):\n${base}/redefinir?t=${token}\n\nSe não foi você, ignore este e-mail.`);
+    await enviarEmailRedefinirSenha(email, m.nome, token);
   }
   redirect("/recuperar?enviado=1");
 }

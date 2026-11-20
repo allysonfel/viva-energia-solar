@@ -4,6 +4,7 @@ import { createHash } from "crypto";
 import { sql, ensureSchema } from "@/lib/db";
 import { hashPassword, SENHA_MINIMA } from "@/lib/auth";
 import { audit } from "@/lib/audit";
+import { enviarEmailSenhaAlterada } from "@/lib/email-conta";
 
 const hashToken = (t: string) => createHash("sha256").update(t).digest("hex");
 
@@ -28,6 +29,9 @@ async function redefinir(fd: FormData) {
     await tx`UPDATE motoristas SET senha_hash = ${hashPassword(senha)}, sessao_versao = sessao_versao + 1 WHERE id = ${r.motorista_id}`;
   });
   await audit(`motorista:${r.motorista_id}`, "senha_redefinida", "motorista", r.motorista_id);
+  // Aviso de senha alterada (protege se alguém entrou pelo e-mail do motorista).
+  const [m] = await sql<{ email: string | null; nome: string }[]>`SELECT email, nome FROM motoristas WHERE id = ${r.motorista_id}`;
+  if (m?.email) void enviarEmailSenhaAlterada(m.email, m.nome, new Date()).catch((err) => console.error("[email] aviso de senha:", err instanceof Error ? err.message : err));
   redirect("/entrar?ok=senha");
 }
 
