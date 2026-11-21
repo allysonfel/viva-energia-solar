@@ -239,8 +239,9 @@ h1,h2,h3{font-family:var(--display);font-stretch:112%;letter-spacing:-.01em;line
 .toggle.on::after{left:21px}
 /* Chave liga/desliga das taxas da estação (checkbox de verdade, sem JS) */
 .taxa-grupo{border:1px solid var(--line);border-radius:14px;padding:12px 14px}
-.taxa-chave{display:flex;align-items:center;gap:10px;font-weight:700;cursor:pointer;margin:0}
-.taxa-chave input{position:absolute;opacity:0;width:1px;height:1px}
+.taxa-chave{display:flex;align-items:center;gap:10px;font-weight:700;cursor:pointer;margin:0;position:relative}
+/* input preso dentro da chave: solto, o navegador rolava a página até ele no clique */
+.taxa-chave input{position:absolute;left:0;top:0;opacity:0;width:1px;height:1px;pointer-events:none}
 .taxa-chave input:checked+.toggle{background:var(--g600)}
 .taxa-chave input:checked+.toggle::after{left:21px}
 .taxa-chave input:focus-visible+.toggle{outline:2px solid var(--g600);outline-offset:2px}
