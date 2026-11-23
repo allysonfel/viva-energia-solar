@@ -66,7 +66,7 @@ export default async function Entrar({ searchParams }: { searchParams: Promise<{
       <div className="auth-form">
         <form className="auth-card" action={login}>
           <h2>Painel de gestão</h2>
-          <p className="sub">Acesso da equipe {s.empresa} e parceiros.</p>
+          <p className="sub">Acesso da equipe e parceiros.</p>
           {erro && <div className="aviso erro">{erro === "bloqueado" ? "Muitas tentativas. Aguarde 15 minutos." : "E-mail ou senha incorretos."}</div>}
           {esqueci && <div className="aviso info">Peça ao administrador uma senha provisória. Ele gera em Equipe, no seu nome.</div>}
           <div className="field">
