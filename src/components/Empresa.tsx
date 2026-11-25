@@ -23,7 +23,7 @@ export function Empresa({ s, intermediador, politica = true }: { s: Settings; in
       {intermediador && <div>Pagamentos intermediados pela {intermediador}, que só processa a cobrança. O serviço e a devolução do saldo são de responsabilidade da {s.empresa}.</div>}
       {politica && (
         <div>
-          <Link href="/reembolso">Política de reembolso</Link> · <Link href="/privacidade">Privacidade</Link>
+          <Link href="/termos">Termos de uso</Link> · <Link href="/reembolso">Política de reembolso</Link> · <Link href="/privacidade">Privacidade</Link>
         </div>
       )}
     </div>

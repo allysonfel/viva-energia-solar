@@ -62,6 +62,10 @@ export function Credito({ simulado, cartao: aceitaCartao }: { simulado: boolean;
   return (
     <div className="box">
       <div className="box-title">Adicionar crédito</div>
+      <div className="muted" style={{ fontSize: 12.5, margin: "-4px 0 10px", lineHeight: 1.5 }}>
+        O valor vira crédito na sua carteira. Cada recarga desconta só o que usar e o que sobrar fica guardado para as próximas, sem prazo.
+        Ao adicionar, você concorda com os <a className="link" href="/termos" target="_blank">termos de uso</a>.
+      </div>
       <div className="amounts">
         {VALORES.map((v) => (
           <button key={v} type="button" className={valor === v ? "on" : ""} onClick={() => setValor(v)}>{v / 100}</button>

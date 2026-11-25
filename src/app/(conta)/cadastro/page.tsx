@@ -92,7 +92,7 @@ export default async function Cadastro({ searchParams }: { searchParams: Promise
       </div>
       <label className="row" style={{ gap: 8, fontSize: 13, alignItems: "flex-start", marginBottom: 8 }}>
         <input type="checkbox" name="aceite" value="1" required style={{ marginTop: 3 }} />
-        <span>Li e aceito os termos de uso e o <Link className="link" href="/privacidade" target="_blank">aviso de privacidade</Link>.</span>
+        <span>Li e aceito os <Link className="link" href="/termos" target="_blank">termos de uso</Link> e o <Link className="link" href="/privacidade" target="_blank">aviso de privacidade</Link>.</span>
       </label>
       <label className="row" style={{ gap: 8, fontSize: 13, marginBottom: 16 }}>
         <input type="checkbox" name="promocoes" value="1" /> Quero receber promoções e vouchers (opcional)
